@@ -49,15 +49,15 @@ For regular posts, time-sensitive pieces, or when no human expert is available. 
 |----------------|-------|-----------|
 | Phase 1: Perspective Discovery | DeepSeek 4 Flash | Fast, strong at structured research output |
 | Phase 2: Simulated Interview | DeepSeek 4 Flash | High-volume token burn; fast and capable |
-| Phase 2: Human Expert Interview | Owl Alpha (Sonnet 4.6) | Needs to synthesize across all interviews and present clearly |
+| Phase 2: Human Expert Interview | Owl Alpha | Needs to synthesize across all interviews and present clearly |
 | Phase 3: Curate and Outline | Owl Alpha | Structured output, reliability |
 | Phase 4: Grounded Writing | Owl Alpha | Voice matching for human hand-edit pass |
 | Phase 5: Moderator/Auditor | Owl Alpha | Highest-leverage role; needs real reasoning strength |
 | Final Polish | DeepSeek 4 Flash | Mechanical task (dedup, summary); speed only |
 
-**Fallback:** If Owl Alpha hits a reasoning ceiling on the moderator role, escalate to a stronger model. Do not escalate as a reflex.
+**Fallback:** If Owl Alpha hits a reasoning ceiling on the moderator role, escalate to a stronger model like Sonnet 4.6. Do not escalate as a reflex.
 
-**Model terminology:** Owl Alpha = Sonnet 4.6 capability level. DeepSeek 4 Flash = Gemini Flash capability level or better, significantly faster.
+**Model terminology:** Owl Alpha is free on Openrouter and presumed to be a frontier Alpha modely. Substitute with frontiew model of your schoice Opus, Sonnet, Gemini Pro or Flash, Deepseek V4 Pro, etc...
 
 ## The Five-Phase Pipeline
 
