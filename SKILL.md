@@ -57,7 +57,7 @@ For regular posts, time-sensitive pieces, or when no human expert is available. 
 
 **Fallback:** If Owl Alpha hits a reasoning ceiling on the moderator role, escalate to a stronger model like Sonnet 4.6. Do not escalate as a reflex.
 
-**Model terminology:** Owl Alpha is free on Openrouter and presumed to be a frontier Alpha modely. Substitute with frontiew model of your schoice Opus, Sonnet, Gemini Pro or Flash, Deepseek V4 Pro, etc...
+**Model terminology:** Owl Alpha is free on Openrouter and presumed to be a frontier Alpha model. Substitute with the frontier model of your choice, Opus, Sonnet, Gemini Pro or Flash, Deepseek V4 Pro, etc...
 
 ## The Five-Phase Pipeline
 
