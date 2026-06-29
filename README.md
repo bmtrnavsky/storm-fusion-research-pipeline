@@ -1,6 +1,6 @@
 # STORM Content Creator
 
-**Version:** 0.1.0
+**Version:** 0.3.0
 **License:** MIT
 
 **This is a methodology reference and AI agent skill specification, not a runnable code implementation.** It provides operational instructions for executing the five-phase STORM research pipeline with human-in-the-loop expert interviews.
@@ -43,8 +43,9 @@ Based on:
 - [Core Insight](#core-insight)
 - [The Five-Phase Pipeline](#the-five-phase-pipeline)
 - [Model Tiering](#model-tiering)
+- [Three-Tier Execution](#three-tier-execution)
 - [Search Stack Detail](#search-stack-detail)
-- [When to Use Full vs Lightweight](#when-to-use-full-vs-lightweight)
+- [When to Use Each Tier](#when-to-use-each-tier)
 - [Evaluation Data](#evaluation-data)
 - [Known Failure Modes](#known-failure-modes)
 
@@ -144,22 +145,69 @@ Direct prompting produces shallow, single-perspective questions. STORM solves th
 
 ---
 
+## Three-Tier Execution
+
+This adaptation defines three tiers based on content importance:
+
+### STORM-Light (4-5 POVs, single model)
+
+For routine blog posts, time-sensitive pieces, and topics within well-established domain knowledge.
+
+- 4-5 perspectives researched by one model (DeepSeek V4 Flash)
+- Fast, cheap, sufficient for most content
+- Single search pass per POV
+
+### STORM-Mid (4-5 POVs x 2 models = 8-10 runs)
+
+For ambitious posts, cross-domain topics, or when single-model echo chamber is a risk.
+
+- 4-5 perspectives, each researched by TWO different models in parallel
+- Models: DeepSeek V4 Flash + NVIDIA Nemotron 3 Super 120B (free on OpenRouter)
+- Each model runs its OWN independent search pass -- different queries, different sources
+- Moderator synthesizes both reports per POV
+- Gives ~80% of Full diversity at half the cost
+
+### STORM-Full (8 POVs x 2 models = 16 runs)
+
+For pillar-level content, deep academic problems, and definitive guides.
+
+- 8 perspectives, each researched by TWO different models in parallel
+- Models: DeepSeek V4 Flash + NVIDIA Nemotron 3 Super 120B (free on OpenRouter)
+- Each model runs its OWN independent search pass
+- Moderator synthesizes all 16 reports
+- Requires expert time for Phase 2 interview and Phase 5 review
+
+### Decision Criteria
+
+| Criteria | Light | Mid | Full |
+|----------|-------|-----|------|
+| Routine post, established territory | Yes | | |
+| Important post, some ambiguity | | Yes | |
+| Pillar content, academic depth | | | Yes |
+| Expert available for checkpoints | | Yes | Yes |
+| Search API budget concern | Yes | | |
+
 ## Model Tiering
 
-The STORM reference implementation supports different models for different stages. This adaptation applies tiering to manage cost and speed:
+| Pipeline Stage | STORM-Light | STORM-Mid | STORM-Full | Rationale |
+|----------------|-------------|-----------|------------|-----------|
+| Phase 1: Perspective Discovery | DeepSeek V4 Flash | DeepSeek V4 Flash | DeepSeek V4 Flash | Strongest fast model, structured output |
+| Phase 2: Expert Interview | DeepSeek V4 Flash, 4-5 POVs sequential | DeepSeek V4 Flash + Nemotron 3 Super, 4-5 POVs x 2 | DeepSeek V4 Flash + Nemotron 3 Super, 8 POVs x 2 | Light: speed. Mid: diversity. Full: maximum diversity |
+| Phase 3: Curate and Outline | Frontier model | Frontier model | Frontier model | Structured output, reliability |
+| Phase 4: Grounded Writing | Frontier model | Frontier model | Frontier model | Voice matching for human hand-edit pass |
+| Phase 5: Moderator/Auditor | Frontier model | Frontier model | Frontier model | Highest-leverage role, needs frontier reasoning |
+| Final Polish | Gemini Flash Lite | Gemini Flash Lite | Gemini Flash Lite | Mechanical task; speed only |
 
-| Pipeline Stage | Model | Rationale |
-|----------------|-------|-----------|
-| Phase 1: Perspective Discovery | DeepSeek 4 Flash | Fast, strong at structured research output |
-| Phase 2: Expert Interview | DeepSeek 4 Flash | High-volume token burn; fast and capable |
-| Phase 3: Curate and Outline | Owl Alpha (Sonnet 4.6) | Structured output, reliability |
-| Phase 4: Grounded Writing | Owl Alpha | Voice matching for human hand-edit pass |
-| Phase 5: Moderator/Auditor | Owl Alpha | Highest-leverage role; needs real reasoning strength |
-| Final Polish | DeepSeek 4 Flash | Mechanical task (dedup, summary); speed only |
+**Model hierarchy (strongest to weakest):** Frontier model (e.g., Claude Sonnet) > DeepSeek V4 Flash > NVIDIA Nemotron 3 Super 120B > Gemini 2.5 Flash > Gemini 2.5 Flash Lite
 
-**Model terminology:** Owl Alpha, Sonnet 4.6, and DeepSeek 4 Flash are specific model identifiers in the Hermes/OpenRouter ecosystem. Owl Alpha = Sonnet 4.6 capability level. DeepSeek 4 Flash = Gemini Flash capability level or better, significantly faster.
+**Why these models:**
+- **DeepSeek V4 Flash** (284B total / 13B active MoE): Best reasoning-per-dollar of any model on OpenRouter. Dominates coding, research, and agentic benchmarks. $0.10/$0.20 per 1M tokens.
+- **NVIDIA Nemotron 3 Super 120B** (120B total / 12B active hybrid Mamba-Transformer MoE): Different architecture and training data than DeepSeek. Free on OpenRouter. Strong at long-context reasoning and agentic tasks.
+- **Gemini 2.5 Flash Lite**: Cheapest option for mechanical tasks. No reasoning required.
 
-**Fallback:** If the primary model hits a reasoning ceiling on the moderator role for complex cross-domain topics, escalate to a stronger model. Do not escalate as a reflex.
+**Search strategy for Mid/Full:** Each model in a POV pair runs its OWN independent search pass. DeepSeek and Nemotron will formulate different queries and surface different sources -- that is the diversity win. Yes, this means 2x search API calls per POV, but the whole point of Mid/Full is that analytical diversity matters more than search cost. If search cost is a concern, drop to Light (single model, single search).
+
+**Fallback:** If the frontier model hits a genuine reasoning ceiling, escalate to DeepSeek V4 Flash for that stage. Do not escalate as a reflex.
 
 ---
 
@@ -186,26 +234,14 @@ The STORM reference implementation supports different models for different stage
 
 ---
 
-## When to Use Full vs Lightweight
+## When to Use Each Tier
 
-**Full STORM (all 5 phases):**
-- Cornerstone content, major research pieces, definitive guides
-- Requires expert time for Phase 2 interviews and Phase 5 review
+See [Three-Tier Execution](#three-tier-execution) for the full decision framework.
 
-**Lightweight STORM (Phases 1, 3, 5 only):**
-- Regular blog posts, shorter pieces
-- Skip the interview phase; use perspective discovery + curation + moderator pass only
-
-**Decision criteria:**
-
-| Criteria | Full | Lightweight |
-|----------|------|-------------|
-| Pillar-level piece | Yes | No |
-| Crosses multiple domains | Yes (but see note) | No |
-| Time-sensitive / news-driven | No | Yes |
-| Expert available for checkpoints | Yes | No |
-
-**Note on "crosses multiple domains":** Almost every S2BI post touches DC operations + BI + technology + strategy. That is the nature of Brad's cross-domain expertise. Apply this criterion pragmatically: if the domains are tightly integrated in one lived experience, it is still one domain. Use full STORM when the topic requires genuinely distinct domains that the expert has NOT connected before.
+Quick reference:
+- **Light** for routine posts (4-5 POVs, single model, single search)
+- **Mid** for important posts where diversity matters (4-5 POVs x 2 models, dual search)
+- **Full** for pillar content and deep academic work (8 POVs x 2 models, dual search)
 
 ---
 
