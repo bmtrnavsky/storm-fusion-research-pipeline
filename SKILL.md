@@ -29,7 +29,7 @@ This adaptation: github.com/bmtrnavsky/storm-content-creator
 ## Two Modes
 
 ### STORM-Full (Multi-Model Research)
-For pillar-level content, ambitious claims, cross-domain synthesis, or whenever genuine perspective diversity matters more than speed. Phase 2 runs 8 independent research perspectives in parallel, each anchored to its own model instance. Requires human expert availability for Phase 2 and Phase 5 checkpoints. Higher token cost in Phase 2.
+For pillar-level content, ambitious claims, cross-domain synthesis, or whenever genuine perspective diversity matters more than speed. Phase 2 runs the approved perspectives in parallel (typically 6-8), each processed by the Fusion panel. Requires human expert availability for Phase 2 and Phase 5 checkpoints. Higher token cost in Phase 2.
 
 ### STORM-Light (Single-Model Research)
 For routine blog posts, time-sensitive pieces, or topics within well-established domain knowledge. One model role-plays all perspectives sequentially. Faster, cheaper, sufficient for most content.
@@ -212,13 +212,13 @@ Both are explicitly flagged in the Co-STORM paper and must be named checks in Ph
 | Pipeline Stage | Light Mode | Full Mode | Rationale |
 |----------------|-----------|-----------|-----------|
 | Phase 1: Perspective Discovery | Fast model | Fast model | Structured output, speed |
-| Phase 2: Simulated Interview | Fast model (single, sequential) | 8 independent runs, mixed models | Light: speed. Full: diversity |
+| Phase 2: Simulated Interview | Fast model (single, sequential) | Fusion panel (4 models fused by DeepSeek V4 Flash) | Light: speed. Full: 4-model diversity per POV |
 | Phase 3: Curate and Outline | Strong model | Strong model | Structured, reliable |
 | Phase 4: Grounded Writing | Strong model | Strong model | Voice matching for hand-edit |
 | Phase 5: Moderator/Auditor | Strong model | Strong model | Highest-leverage role |
 | Final Polish | Fast model | Fast model | Mechanical task; speed only |
 
-**Full mode model diversity rule:** In Phase 2, do not assign the same model to all 8 perspectives. Mix at least 2 different models across the 8 runs. Different training data, different biases, different blind spots.
+**Full mode Fusion routing:** Query the OpenRouter Fusion endpoint for each perspective. The API handles model selection and synthesis server-side. Do not attempt to manually route to individual models.
 
 **Fallback:** If the strong model hits a reasoning ceiling on the moderator role, escalate to a stronger model. Do not escalate as a reflex.
 
