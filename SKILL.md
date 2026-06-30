@@ -4,7 +4,7 @@ description: Run STORM-style multi-perspective research using OpenRouter Fusion 
 license: MIT
 metadata:
   author: Brad Trnavsky
-  version: "1.0.0"
+  version: "0.2.0"
   category: research
   compatible_with:
     - Hermes
