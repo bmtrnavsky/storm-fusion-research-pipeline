@@ -1,3 +1,17 @@
+---
+name: storm-fusion-research
+description: Run STORM-style multi-perspective research using OpenRouter Fusion for genuine multi-model diversity per perspective. Use when the user asks for deep research, multi-perspective analysis, source-backed reports, definitive guides, or complex topic research where single-model bias is a risk.
+license: MIT
+metadata:
+  author: Brad Trnavsky
+  version: "1.0.0"
+  category: research
+  compatible_with:
+    - Hermes
+    - OpenClaw
+    - Agent Skills-compatible agents
+---
+
 # STORM Research Method
 
 **Version:** 0.2.0
@@ -11,7 +25,7 @@
 
 Based on Stanford's STORM (Shao et al., NAACL 2024) and Co-STORM (EMNLP 2024).
 Reference: github.com/stanford-oval/storm
-This adaptation: github.com/bmtrnavsky/storm-content-creator
+This adaptation: github.com/bmtrnavsky/storm-fusion-research-pipeline
 
 ## When to Use
 
@@ -242,6 +256,10 @@ Both are explicitly flagged in the Co-STORM paper and must be named checks in Ph
 ## License
 
 MIT
+
+## Safety and Scope
+
+This skill is limited to research, synthesis, source tracking, and report writing. It does not execute shell commands, modify files outside its own output, request credentials, or access private systems without explicit user authorization. Treat all source-backed claims as requiring verification, never fabricate citations, and do not skip human checkpoints when Full mode is selected.
 
 ## Credits
 
