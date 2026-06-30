@@ -19,7 +19,7 @@
 }
 ```
 
-**Implementation:** Add `run_id` (timestamp-based) at pipeline start. Pass it through every `delegate_task` call via context. Each subagent embeds it in output metadata. Log files and cosdb entries keyed on `run_id + phase + pov_id`.
+**Implementation:** Add `run_id` (timestamp-based) at pipeline start. Pass it through every `delegate_task` call via context. Each subagent embeds it in output metadata. Log files and pipeline database entries keyed on `run_id + phase + pov_id`.
 
 **Benefit:** Full traceability. Replay any POV. Compare outputs across runs. Debug exactly where quality degraded.
 
@@ -27,7 +27,7 @@
 
 **Problem:** Subagent calls fail. Network timeouts, model rate limits, malformed prompts. When a POV subagent fails, the POV report is lost. The moderator either synthesizes without it (reducing coverage) or the whole run stalls waiting for a retry that never comes.
 
-**Solution:** Failed subagent calls are written to a dead letter queue (cosdb table or file-based) with:
+**Solution:** Failed subagent calls are written to a dead letter queue (pipeline database table or file-based) with:
 - The original prompt and context
 - Failure reason (timeout, rate limit, model error, malformed output)
 - Timestamp and run_id
@@ -41,7 +41,7 @@
 
 **Problem:** Pipeline runs produce unstructured output. There's no historical record of which models were used, how long each phase took, token consumption, or success/failure rates. Optimizing the pipeline requires data, and right now the data is scattered across log files and memory.
 
-**Solution:** Write a structured run summary to cosdb after each pipeline completion:
+**Solution:** Write a structured run summary to pipeline database after each pipeline completion:
 
 ```json
 {
@@ -51,7 +51,7 @@
   "topic": "...",
   "pov_count": 7,
   "phases": {
-    "phase1-discovery": { "model": "cos-heavy", "latency_s": 45, "status": "ok" },
+    "phase1-discovery": { "model": "deepseek-v4-flash", "latency_s": 45, "status": "ok" },
     "phase2-interview": { "model": "fusion-panel", "latency_s": 312, "status": "ok", "povs_completed": 7 },
     "phase3-curate": { "model": "owl-alpha", "latency_s": 28, "status": "ok" },
     "phase4-write": { "model": "owl-alpha", "latency_s": 180, "status": "ok" },
@@ -61,11 +61,11 @@
   "cost_usd": 0.84,
   "outcome": "complete",
   "povs_flagged": ["pov-05-safety"],
-  "brad_checkpoints": ["phase1", "phase5"]
+  "researcher_checkpoints": ["phase1", "phase5"]
 }
 ```
 
-**Implementation:** After each phase completes, append to a run log in cosdb. On pipeline completion, write the full summary. Queryable by run_id, tier, topic, date range.
+**Implementation:** After each phase completes, append to a run log in pipeline database. On pipeline completion, write the full summary. Queryable by run_id, tier, topic, date range.
 
 **Benefit:** Historical performance data. Identify which phases are bottlenecks. Track model quality over time. Justify tier selection with real numbers. Feed into future model tiering decisions.
 
