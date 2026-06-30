@@ -56,8 +56,8 @@ Independent blind-spot sweep for unknown unknowns. Co-STORM evaluation found tha
 
 ```bash
 # Clone
-git clone https://github.com/bmtrnavsky/storm-content-creator.git
-cd storm-content-creator
+git clone https://github.com/bmtrnavsky/storm-fusion-research-pipeline.git
+cd storm-fusion-research-pipeline
 
 # Requires OpenRouter API key with access to:
 # - openrouter/owl-alpha
@@ -67,7 +67,7 @@ cd storm-content-creator
 # - deepseek/deepseek-v4-flash
 ```
 
-Run the pipeline through Hermes Agent with the `content-pipeline` skill loaded.
+Designed to run via any agent framework supporting OpenRouter's API with tool use and web search enabled. See SKILL.md for the full pipeline implementation.
 
 ## Model Configuration
 
@@ -120,7 +120,7 @@ All tiers use the same Fusion panel. The only variable is how many perspectives 
 
 - Reference implementation: [stanford-oval/storm](https://github.com/stanford-oval/storm) (29.2k stars)
 - LangGraph port: [braincrew-lab/STORM-Research-Assistant](https://github.com/braincrew-lab/STORM-Research-Assistant)
-- This repo: [bmtrnavsky/storm-content-creator](https://github.com/bmtrnavsky/storm-content-creator)
+- This repo: [bmtrnavsky/storm-fusion-research-pipeline](https://github.com/bmtrnavsky/storm-fusion-research-pipeline)
 - web_search replaces Tavily/ArXiv as the primary retrieval tool in this implementation
 
 ## License
