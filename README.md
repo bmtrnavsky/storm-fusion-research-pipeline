@@ -2,6 +2,8 @@
 
 A practitioner-built implementation of Stanford's STORM methodology using OpenRouter Fusion to research topics with 4 parallel AI models per perspective.
 
+*Research any topic deeply -- academic papers, market analysis, technical documentation, competitive intelligence, investigative journalism -- using 4 genuinely diverse AI models per perspective.*
+
 Based on: Shao et al., NAACL 2024 -- "Assisting in Writing Wikipedia-like Articles from Scratch with Large Language Models"
 
 ## What is STORM?
@@ -59,7 +61,7 @@ cd storm-content-creator
 # - deepseek/deepseek-v4-flash
 ```
 
-Run the pipeline through Hermes Agent with the `content-pipeline` skill loaded.
+Designed to run via any agent framework supporting OpenRouter's API with tool use and web search enabled. See SKILL.md for the full pipeline implementation.
 
 ## Model Configuration
 
@@ -98,6 +100,15 @@ Tested against RAG chatbots and STORM+QA across seven metrics (Co-STORM human ev
 
 Key finding: Removing the moderator hurts performance more than reducing the number of experts.
 
+## Use Cases
+
+- Academic research and literature synthesis
+- Competitive intelligence and market analysis
+- Technical documentation and specification writing
+- Investigative journalism and long-form reporting
+- Content research where single-model bias is a liability
+- Any research task requiring genuine multi-perspective depth
+
 ## Tiers
 
 All tiers use the same Fusion panel. The only variable is how many perspectives the topic deserves.
@@ -114,6 +125,9 @@ All tiers use the same Fusion panel. The only variable is how many perspectives 
 - LangGraph port: [braincrew-lab/STORM-Research-Assistant](https://github.com/braincrew-lab/STORM-Research-Assistant)
 - This repo: [bmtrnavsky/storm-content-creator](https://github.com/bmtrnavsky/storm-content-creator)
 - web_search replaces Tavily/ArXiv as the primary retrieval tool in this implementation
+- Designed to run via any agent framework supporting OpenRouter's API with tool use and web search enabled
+- See SKILL.md for full pipeline implementation details
+- See storm-method.md for complete methodology documentation including Fusion architecture rationale
 
 ## License
 
