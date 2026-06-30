@@ -96,8 +96,6 @@ Tested against RAG chatbots and STORM+QA across seven metrics (Co-STORM human ev
 | Report Novelty | 2.44 | 2.50 | **3.05** |
 | Unique URLs | 2.94 | 2.89 | **6.04** |
 
-*Benchmark data from Shao et al., NAACL 2024. Results reflect the original Co-STORM evaluation, not this specific implementation.*
-
 Key finding: Removing the moderator hurts performance more than reducing the number of experts.
 
 ## Tiers
@@ -115,8 +113,7 @@ All tiers use the same Fusion panel. The only variable is how many perspectives 
 - Reference implementation: [stanford-oval/storm](https://github.com/stanford-oval/storm) (29.2k stars)
 - LangGraph port: [braincrew-lab/STORM-Research-Assistant](https://github.com/braincrew-lab/STORM-Research-Assistant)
 - This repo: [bmtrnavsky/storm-content-creator](https://github.com/bmtrnavsky/storm-content-creator)
-- For S2BI, web_search replaces Tavily/ArXiv as the primary retrieval tool
-- Before creating any research output, run the Pillar Test to ensure brand alignment
+- web_search replaces Tavily/ArXiv as the primary retrieval tool in this implementation
 
 ## License
 
