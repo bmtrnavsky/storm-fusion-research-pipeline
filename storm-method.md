@@ -19,9 +19,9 @@ Direct prompting produces shallow, single-perspective questions. STORM solves th
 - **Output:** For each perspective: persona name, what they care about, sharpest questions they would ask
 - **Key mechanism:** Survey related articles to discover diverse viewpoints automatically
 - **Why it works:** Different perspectives produce different questions; generic prompts produce generic questions
-- **Brad interaction:** Present perspectives to Brad for approval before proceeding. Brad can reject, add, or modify. This is the first human checkpoint.
+- **Researcher checkpoint:** Present perspectives to the researcher for approval before proceeding. the researcher can reject, add, or modify. This is the first human checkpoint.
 
-### Phase 2: Expert Interview (Brad Modification -- Fusion Architecture)
+### Phase 2: Expert Interview (Researcher Modification -- Fusion Architecture)
 
 All tiers now use OpenRouter Fusion. Each POV gets 4 analysis models fused into a single report by DeepSeek V4 Flash. POV count is the only variable between tiers.
 
@@ -65,7 +65,7 @@ Every POV is researched by 4 models simultaneously, fused into one report:
 3. Dispatch N independent delegate_task subagents (batches of 3 respecting max_concurrent_children). Each subagent owns ONE POV and includes the full Fusion config in its prompt.
 4. Each subagent outputs a structured report with cited sources for its assigned POV. The Fusion plugin returns a single fused report -- no per-model reconciliation needed.
 5. Moderator (Owl Alpha) collects all N reports.
-6. Brad interview pass: moderator presents synthesized findings across all reports, highlighting agreements, disagreements, and unique angles. Brad stress-tests disagreements, gaps, missing angles.
+6. the researcher interview pass: moderator presents synthesized findings across all reports, highlighting agreements, disagreements, and unique angles. the researcher stress-tests disagreements, gaps, missing angles.
 7. Moderator reconciles contradictions, flags unresolved claims as [VERIFY].
 
 **Cost comparison:**
@@ -78,8 +78,8 @@ Every POV is researched by 4 models simultaneously, fused into one report:
 
 Fusion delivers 2-4x the model diversity per POV at the same or lower dispatch count. The fuser cost (DeepSeek V4 Flash at $0.14/$0.28 per 1M) is negligible.
 
-- **Hard rule:** If a factual claim cannot be backed by a real source AND Brad cannot confirm from experience, output "unverified" -- fabrication is strictly forbidden.
-- **Brad modification novelty:** No published work runs 4-model Fusion perspective interviews with cached source sharing + real human practitioner interview. This is a genuine contribution.
+- **Hard rule:** If a factual claim cannot be backed by a real source AND the researcher cannot confirm from experience, output "unverified" -- fabrication is strictly forbidden.
+- **Researcher modification novelty:** No published work runs 4-model Fusion perspective interviews with cached source sharing + real human practitioner interview. This is a genuine contribution.
 
 #### Parallel Writing Pattern (all tiers)
 
@@ -100,7 +100,7 @@ Draft the full post while subagent interviews run in background. Revise after al
 - **Constraint:** Every claim points back to a collected source
 - **Hard rule:** If a section is thin on data, write "needs more research" instead of padding
 - **Banned phrases:** No em-dashes. No hollow adjectives ("groundbreaking," "revolutionary," "game-changing," "transformative"). No "delve," "dive deep," "unpack," "demystify," "journey." No generic openers. No summary closings.
-- **Verification flags:** Use [VERIFY] for claims that cannot be backed by a real source AND Brad cannot confirm
+- **Verification flags:** Use [VERIFY] for claims that cannot be backed by a real source AND the researcher cannot confirm
 
 ### Phase 5: Co-STORM Moderator Pass
 
@@ -111,7 +111,7 @@ Draft the full post while subagent interviews run in background. Revise after al
   1. **Source bias transfer:** Leaning too heavily on a single biased source
   2. **Over-association of unrelated facts:** Creating red herrings by connecting facts that are not actually related
 - **Output:** Flagged errors fixed before final output
-- **Brad interaction:** Present moderator findings to Brad. Second human checkpoint.
+- **Researcher checkpoint:** Present moderator findings to the researcher. Second human checkpoint.
 
 ## Co-STORM Evaluation Data (for calibration)
 
@@ -135,7 +135,7 @@ Key finding: Removing the moderator hurts performance more than reducing the num
 | Phase 1: Perspective Discovery | cos-heavy (deepseek-v4-flash) | Strongest fast model, structured research output |
 | Phase 2: Expert Interview (all tiers) | Fusion: 4 models (Owl Alpha + Nemotron 3 Ultra + gpt-oss-120b + Gemma 4 31B) fused by DeepSeek V4 Flash | 4-model diversity per POV, single fuser cost |
 | Phase 3: Curate and Outline | Owl Alpha | Frontier tier, structured output, reliability |
-| Phase 4: Grounded Writing | Owl Alpha | Frontier tier, voice matching for Brad's hand-edit pass |
+| Phase 4: Grounded Writing | Owl Alpha | Frontier tier, voice matching for researcher's final review |
 | Phase 5: Moderator/Auditor | Owl Alpha | Highest-leverage role; needs frontier reasoning strength |
 | Final Polish | cos-fast (gemini-2.5-flash-lite) | Mechanical task; speed only, quality not critical |
 
@@ -195,7 +195,7 @@ This means the architecture is not "more models = better." It's "more models fee
 
 No published STORM implementation runs multi-model Fusion at the POV level. The Stanford paper and all known implementations use single models per perspective. This architecture -- 4-model free panel + cheap judge + human moderator across N perspectives -- achieves near-frontier research quality at near-zero cost.
 
-This is Brad's original contribution to the STORM methodology. Document it as such.
+This is This implementation's original contribution to the STORM methodology. Document it as such.
 
 ### The Operational Implication
 
@@ -212,9 +212,9 @@ The Fusion panel cost is only the fuser prompt (DeepSeek V4 Flash at $0.14/$0.28
 
 ## Search Stack Detail
 
-**Hierarchy: web search is primary. RAG is context. session_search is pre-check. Perplexity is supplementary.**
+**Hierarchy: web search is primary. RAG is context. conversation history search is pre-check. Perplexity is supplementary.**
 
-See `references/search-hierarchy.md` for the full rationale and Brad's preference.
+See `references/search-hierarchy.md` for the full rationale and implementation preference.
 
 ### Full Search Stack (2026-06-25)
 
@@ -223,22 +223,22 @@ See `references/search-hierarchy.md` for the full rationale and Brad's preferenc
 | Internet facts | web_search (exa) | Active | Current events, specific claims, dates |
 | Web extraction | web_extract (firecrawl) | Active | Full page content, PDFs, articles |
 | External synthesis | Perplexity (sonar-pro) | Active | Parallel fact-checking, multi-source comparisons |
-| Vault context | pgvector RAG | Active | Brad's wiki notes, cross-domain connections |
-| Prior thinking | session_search | Active | What Brad already said/thought on the topic |
+| Knowledge base context | vector database RAG | Active | researcher's knowledge base, cross-domain connections |
+| Prior thinking | conversation history search | Active | What the researcher already said/thought on the topic |
 | Internal reasoning | x_search (Grok) | Active | Complex reasoning (not web search) |
 
 ### Tool Availability Reality Check
 
 Before starting Phase 2, verify which search tools are actually available. Do not assume any specific tool is configured. Check in this order:
 
-1. `hermes config show | grep -i search` -- reveals configured search backends
+1. `check your agent framework's configuration | grep -i search` -- reveals configured search backends
 2. `env | grep -i "PERPLEX\|SEARCH\|API"` -- reveals available API keys in env
-3. `hermes config show 2>/dev/null | grep -i "perplex"` -- keys may live in config.yaml but not env
-4. Default available tools: `web_search`, `web_extract`, `session_search`, RAG (pgvector)
+3. `check your agent framework's configuration 2>/dev/null | grep -i "perplex"` -- keys may live in config.yaml but not env
+4. Default available tools: `web_search`, `web_extract`, `conversation history search`, RAG (vector database)
 
-**Perplexity Discovery Pattern (2026-06-25):** Brad requested Perplexity. Env var was empty. Config.yaml at `web.perplexity.api_key` contained a valid key. Verified live with curl to API endpoint -- returned 200. Lesson: always check config.yaml for backends that may be configured but not exposed via environment variables. API keys can be in config.yaml, .env file (redacted in display), or actual env vars. Check all three locations.
+**Perplexity Discovery Pattern (2026-06-25):** researcher requested Perplexity. Env var was empty. Config.yaml at `web.perplexity.api_key` contained a valid key. Verified live with curl to API endpoint -- returned 200. Lesson: always check config.yaml for backends that may be configured but not exposed via environment variables. API keys can be in config.yaml, .env file (redacted in display), or actual env vars. Check all three locations.
 
-**If Brad requests a tool that is not configured:**
+**If the researcher requests a tool that is not configured:**
 - Tell him immediately. Do not silently substitute.
 - Offer the best available alternative from the configured stack.
 - Ask if he wants to configure the missing tool before proceeding.
@@ -253,30 +253,30 @@ All tiers use the same Fusion panel (4 models per POV). The only variable is how
 
 **STORM-Mid (6-8 POVs, 6-8 sub-agent calls):** Ambitious posts, cross-domain topics, or when single-model echo chamber is a risk. Good middle ground for important but not pillar content.
 
-**STORM-Full (8-10 POVs, 8-10 sub-agent calls):** Pillar-level content, deep academic problems, definitive guides, topics where genuine perspective diversity matters more than cost. Requires Brad's time for Phase 2 interview and Phase 5 review. Reserve for content that justifies the depth.
+**STORM-Full (8-10 POVs, 8-10 sub-agent calls):** Pillar-level content, deep academic problems, definitive guides, topics where genuine perspective diversity matters more than cost. Requires the researcher's time for Phase 2 interview and Phase 5 review. Reserve for content that justifies the depth.
 
 **Decision criteria:**
 - Routine post, established territory -> Light (4-5 POV)
 - Important post, some ambiguity -> Mid (6-8 POV)
 - Pillar content, academic depth, ambitious claims -> Full (8-10 POV)
-- Brad available for interview checkpoints? -> Mid or Full. If not -> Light.
+- researcher available for interview checkpoints? -> Mid or Full. If not -> Light.
 - Budget concern? -> All tiers are nearly free (only fuser prompts cost anything). Scale up POV count without cost anxiety.
 
 **Cost is no longer a tier differentiator.** The Fusion fuser (DeepSeek V4 Flash) costs $0.14/$0.28 per 1M tokens. A Full run with 10 POVs costs ~10 fuser prompts -- still under $1. The analysis models are all free. Choose tier based on how many perspectives the topic deserves, not cost.
 
-## Pipeline Mapping to S2BI Agents
+## Pipeline Mapping to Pipeline Agent Mapping
 
-| STORM Phase | S2BI Agent | Notes |
+| STORM Phase | this implementation Agent | Notes |
 |-------------|-----------|-------|
 | Phase 1: Perspective Discovery | Provocateur + Forensic Scientist | Formalize persona + questions format |
-| Phase 2: Expert Interview | Brad (human) + Forensic Scientist (research) | Novel modification; model researches, Brad stress-tests |
+| Phase 2: Expert Interview | the researcher (human) + Forensic Scientist (research) | Novel modification; model researches, the researcher stress-tests |
 | Phase 3: Curate and Outline | Military Planner | Add contradiction-flagging requirement; living outline |
 | Phase 4: Grounded Writing | Master Editor | Adopt "needs more research" instead of padding |
 | Phase 5: Moderator | Auditor | Formalize the two named failure modes as checks |
 
 ## Banned Phrases and Patterns for Blog Posts
 
-These apply specifically to BradTrnavsky.com content:
+These apply specifically to your content:
 
 - Em-dashes (use commas, periods, or line breaks)
 - "is the one that landed"
@@ -295,17 +295,5 @@ These apply specifically to BradTrnavsky.com content:
 - Reference implementation: github.com/stanford-oval/storm (4 modules)
 - LangGraph port: github.com/braincrew-lab/STORM-Research-Assistant
 - Public adaptation: github.com/bmtrnavsky/storm-content-creator (v0.1.0)
-- For S2BI, web_search replaces Tavily/ArXiv as the primary retrieval tool
-- Before creating any content card, run the Pillar Test to ensure brand alignment.
+- In this implementation, web_search replaces Tavily/ArXiv as the primary retrieval tool
 - **Lessons learned from live pipeline runs:** see `references/storm-lessons-learned.md`
-
-## Live Run Log
-
-### 2026-06-25: "From Turing to Hermes" (bradtrnavsky.com)
-
-**Search stack used:** web_search (exa) + Perplexity (sonar-pro) + pgvector RAG + session_search
-**Expert interviews:** 7 personas (Historian, ML Researcher, NLP Specialist, Skeptic, Safety Researcher, Agentic Practitioner, Futurist) dispatched in 3 batches of delegate_task subagents
-**Draft strategy:** Wrote full draft before subagent completion, then revised to incorporate expert insights
-**Key discovery:** Perplexity key was in config.yaml but not env var -- discovered via hermes config show, verified live with curl
-**Banned phrase check:** 0 violations in final draft
-**Word count:** ~4,200 (target 3,000-4,000)
