@@ -1,6 +1,6 @@
 # STORM Content Creator
 
-A practitioner-built implementation of Stanford's STORM methodology using OpenRouter Fusion to research and write blog posts with 4 parallel AI models per perspective.
+A multi-model AI research pipeline based on Stanford's STORM methodology -- research any topic deeply using 4 parallel AI models with OpenRouter Fusion, producing structured long-form documents with verified citations.
 
 Based on: Shao et al., NAACL 2024 -- "Assisting in Writing Wikipedia-like Articles from Scratch with Large Language Models"
 
