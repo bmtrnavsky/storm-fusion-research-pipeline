@@ -36,9 +36,9 @@ Every POV is researched by 4 models simultaneously, fused into one report:
     "id": "fusion",
     "analysis_models": [
       "nvidia/nemotron-3-ultra-550b-a55b:free",
-      "nvidia/nemotron-3-ultra-550b-a55b:free",
       "openai/gpt-oss-120b:free",
-      "google/gemma-4-31b-it:free"
+      "google/gemma-4-31b-it:free",
+      "minimax/minimax-m2.5:free"
     ],
     "model": "deepseek/deepseek-v4-flash"
   }]
@@ -46,7 +46,7 @@ Every POV is researched by 4 models simultaneously, fused into one report:
 ```
 
 - **Fuser model:** DeepSeek V4 Flash (DeepSeek V4 Flash) -- synthesizes all 4 analysis model outputs into one coherent POV report
-- **Analysis models:** Nemotron 3 Ultra (frontier MoE), gpt-oss-120b (STEM/math), Gemma 4 31B (general/multimodal), GLM 4.5 Air (frontier reasoning, Zhipu AI)
+- **Analysis models:** Nemotron 3 Ultra (frontier MoE), gpt-oss-120b (STEM/math), Gemma 4 31B (general/multimodal), minimax-m2.5 (MiniMax)
 - **Cost:** Only the fuser prompt is charged (DeepSeek V4 Flash). All 4 analysis models run free tiers.
 - **Nemotron 3 Ultra** serves as both an analysis model here AND the Phase 5 moderator -- sequential stages, no conflict.
 
@@ -133,7 +133,7 @@ Key finding: Removing the moderator hurts performance more than reducing the num
 | Pipeline Stage | Model | Rationale |
 |----------------|-------|-----------|
 | Phase 1: Perspective Discovery | Nemotron 3 Ultra 550B | Frontier reasoning, structured research output |
-| Phase 2: Expert Interview (all tiers) | Fusion: 4 models (Nemotron 3 Ultra + gpt-oss-120b + Gemma 4 31B + GLM 4.5 Air) fused by DeepSeek V4 Flash | 4-model diversity per POV, single fuser cost |
+| Phase 2: Expert Interview (all tiers) | Fusion: 4 models (Nemotron 3 Ultra + gpt-oss-120b + Gemma 4 31B + minimax-m2.5) fused by DeepSeek V4 Flash | 4-model diversity per POV, single fuser cost |
 | Phase 3: Curate and Outline | Nemotron 3 Ultra 550B | Frontier tier, structured output, reliability |
 | Phase 4: Grounded Writing | Nemotron 3 Ultra 550B | Frontier tier, voice matching for researcher's final review |
 | Phase 5: Moderator/Auditor | Nemotron 3 Ultra 550B | Highest-leverage role; needs frontier reasoning strength |
@@ -143,15 +143,15 @@ Key finding: Removing the moderator hurts performance more than reducing the num
 - `nvidia/nemotron-3-ultra-550b-a55b:free` -- frontier MoE reasoning (55B active of 550B)
 - `openai/gpt-oss-120b:free` -- STEM, math, coding strength
 - `google/gemma-4-31b-it:free` -- general, multimodal, Google-backed
-- `z-ai/glm-4.5-air:free` -- frontier reasoning, Zhipu AI
+- `MiniMax/minimax-m2.5-free` -- MiniMax Diversity
 - **Fuser:** `deepseek/deepseek-v4-flash` -- synthesizes all 4 into one report
 
-**Model hierarchy (strongest to weakest):** Nemotron 3 Ultra (frontier workhorse) > DeepSeek V4 Flash (fuser) > GLM 4.5 Air, gpt-oss-120b, Gemma 4 31B (fusion panel, parity)
+**Model hierarchy (strongest to weakest):** Nemotron 3 Ultra (frontier workhorse) > DeepSeek V4 Flash (fuser) > minimax-m2.5, gpt-oss-120b, Gemma 4 31B (fusion panel, parity)
 
 **Fallback chain (matches config.yaml fallback_chain):**
 1. Nemotron 3 Ultra 550B (primary -- strongest free model, frontier workhorse)
 2. Nemotron 3 Super 120B (free -- stable, strong tool caller)
-3. GLM 4.5 Air (free -- frontier reasoning, Zhipu AI)
+3. minimax-m2.5 (free -- MiniMax)
 4. DeepSeek V4 Flash (paid -- last resort safety net)
 
 If Nemotron 3 Ultra is unavailable (rate limit, outage), the fallback chain automatically promotes the next model. Do not escalate as a reflex.
@@ -166,7 +166,7 @@ Standard STORM uses a single model per POV. The "perspective diversity" comes en
 
 With Fusion, each POV is researched by four models with genuinely different architectures, training data, companies, and knowledge biases:
 
-- **GLM 4.5 Air** (Zhipu AI/frontier reasoning)
+- **minimax-m2.5** (MiniMax)
 - **Nemotron 3 Ultra 550B** (NVIDIA/US agentic, MoE architecture)
 - **gpt-oss-120b** (OpenAI/RLHF, STEM/math strength)
 - **Gemma 4 31B** (Google/DeepMind, general/multimodal)
