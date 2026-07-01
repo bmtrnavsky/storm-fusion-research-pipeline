@@ -16,10 +16,10 @@ Most published STORM implementations use a single model per perspective. The "pe
 
 This implementation uses **OpenRouter Fusion** to run 4 genuinely different models per perspective:
 
-- **Owl Alpha** -- frontier reasoning
 - **Nemotron 3 Ultra 550B** -- NVIDIA MoE architecture, US agentic training
 - **gpt-oss-120b** -- OpenAI RLHF, STEM/math strength
 - **Gemma 4 31B** -- Google DeepMind, general and multimodal
+- **GLM 4.5 Air** -- Zhipu AI, frontier reasoning, free tier
 
 A **DeepSeek V4 Flash** judge synthesizes all 4 outputs into a single POV report, surfacing consensus, contradictions, gaps, and unique insights. The moderator in the final phase reconciles genuine intellectual diversity across perspectives, not synthetic persona variation.
 
@@ -60,7 +60,7 @@ git clone https://github.com/bmtrnavsky/storm-fusion-research-pipeline.git
 cd storm-fusion-research-pipeline
 
 # Requires OpenRouter API key with access to:
-# - openrouter/owl-alpha
+# - z-ai/glm-4.5-air:free
 # - nvidia/nemotron-3-ultra-550b-a55b:free
 # - openai/gpt-oss-120b:free
 # - google/gemma-4-31b-it:free
@@ -88,23 +88,23 @@ Once installed, simply ask your agent: *"Run STORM research on [your topic]."*
 
 | Pipeline Stage | Model | Rationale |
 |----------------|-------|-----------|
-| Phase 1: Perspective Discovery | Owl Alpha | Frontier reasoning, structured research output |
+| Phase 1: Perspective Discovery | Nemotron 3 Ultra 550B | Frontier reasoning, structured research output |
 | Phase 2: Expert Interview | Fusion: 4 models fused by DeepSeek V4 Flash | 4-model diversity per POV, single fuser cost |
-| Phase 3: Curate and Outline | Owl Alpha | Frontier tier, structured output, reliability |
-| Phase 4: Grounded Writing | Owl Alpha | Frontier tier, voice consistency for researcher's final review |
-| Phase 5: Moderator/Auditor | Owl Alpha | Highest-leverage role; needs frontier reasoning strength |
-| Final Polish | Owl Alpha | Final review pass before researcher delivery |
+| Phase 3: Curate and Outline | Nemotron 3 Ultra 550B | Frontier tier, structured output, reliability |
+| Phase 4: Grounded Writing | Nemotron 3 Ultra 550B | Frontier tier, voice consistency for researcher's final review |
+| Phase 5: Moderator/Auditor | Nemotron 3 Ultra 550B | Highest-leverage role; needs frontier reasoning strength |
+| Final Polish | Nemotron 3 Ultra 550B | Final review pass before researcher delivery |
 
 ### Model Hierarchy (strongest to weakest)
 
-Owl Alpha (frontier) > DeepSeek V4 Flash > Nemotron 3 Ultra (free MoE) > gpt-oss-120b (free) > Gemma 4 31B (free)
+Nemotron 3 Ultra 550B (frontier workhorse) > DeepSeek V4 Flash > gpt-oss-120b (free) > Gemma 4 31B (free) > GLM 4.5 Air (free)
 
 ### Fusion Panel per POV
 
-- `openrouter/owl-alpha` -- frontier reasoning
 - `nvidia/nemotron-3-ultra-550b-a55b:free` -- frontier MoE reasoning (55B active of 550B)
 - `openai/gpt-oss-120b:free` -- STEM, math, coding strength
 - `google/gemma-4-31b-it:free` -- general, multimodal, Google-backed
+- `z-ai/glm-4.5-air:free` -- frontier reasoning, Zhipu AI
 - **Fuser:** `deepseek/deepseek-v4-flash` -- synthesizes all 4 into one report
 
 ## Results
