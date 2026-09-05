@@ -51,17 +51,17 @@
   "topic": "...",
   "pov_count": 7,
   "phases": {
-    "phase1-discovery": { "model": "deepseek-v4-flash", "latency_s": 45, "status": "ok" },
+    "phase1-discovery": { "model": "nemotron-3-ultra-550b", "latency_s": 45, "status": "ok" },
     "phase2-interview": { "model": "fusion-panel", "latency_s": 312, "status": "ok", "povs_completed": 7 },
-    "phase3-curate": { "model": "owl-alpha", "latency_s": 28, "status": "ok" },
-    "phase4-write": { "model": "owl-alpha", "latency_s": 180, "status": "ok" },
-    "phase5-moderate": { "model": "owl-alpha", "latency_s": 67, "status": "ok" }
+    "phase3-curate": { "model": "nemotron-3-ultra-550b", "latency_s": 28, "status": "ok" },
+    "phase4-write": { "model": "nemotron-3-ultra-550b", "latency_s": 180, "status": "ok" },
+    "phase5-moderate": { "model": "nemotron-3-ultra-550b", "latency_s": 67, "status": "ok" }
   },
   "tokens": { "input": 45000, "output": 12000 },
   "cost_usd": 0.84,
   "outcome": "complete",
   "povs_flagged": ["pov-05-safety"],
-  "researcher_checkpoints": ["phase1", "phase2", "phase5"]
+  "researcher_checkpoints": ["phase1", "phase2.5", "phase5"]
 }
 ```
 
@@ -81,9 +81,6 @@
 - On pipeline start: scan for run_id checkpoints, build a completion set
 - Dispatch only POVs not in the completion set
 - On subagent completion: write checkpoint atomically
-
-**Critical rule: DLQ + Checkpoint coupling**
-If a POV hits the Dead Letter Queue and exhausts its retries, the Checkpointer MUST save that POV's status as `failed`. If left blank or marked as pending, pipeline restarts will trigger an infinite retry loop -- the Checkpointer sees no completion, dispatches again, the subagent fails again, the DLQ catches it again, repeat. Always write `status: "failed"` on terminal DLQ exhaustion before the next run begins.
 
 **Benefit:** Partial batch failures are recoverable. No wasted compute on completed POVs. Enables mid-run interruption and resumption. Critical for long-running Full tier (10 POVs, potentially 10+ minutes of subagent work).
 

@@ -14,12 +14,12 @@ Instead of asking one LLM to write from a generic prompt, STORM discovers the di
 
 Most published STORM implementations use a single model per perspective. The "perspective diversity" comes from a persona prompt -- you ask one model to roleplay different viewpoints. The model's training biases, knowledge gaps, and reasoning patterns stay constant across every perspective. **Genuine disagreement between viewpoints is largely theatrical.**
 
-This implementation uses **OpenRouter Fusion** to run 4 genuinely different models per perspective:
+This implementation uses **OpenRouter Fusion** to run by Nemotron 3 Ultra to run 4 genuinely different models per perspective:
 
-- **Nemotron 3 Ultra 550B** -- NVIDIA MoE architecture, US agentic training
-- **gpt-oss-120b** -- OpenAI RLHF, STEM/math strength
-- **Gemma 4 31B** -- Google DeepMind, general and multimodal
-- **MiniMax M2.5** -- MiniMax (Shanghai), distinct Chinese lab lineage and pretraining philosophy
+- **Nemotron 3 Ultra 550B** -- NVIDIA, US-origin, agentic RL, Mamba-Transformer hybrid
+- **gpt-oss-120b** -- OpenAI, RLHF-heavy, STEM/math strength, Western training
+- **Gemma 4 31B** -- Google DeepMind, factual grounding, math, multimodal
+- **MiniMax M2.5** -- MiniMax (Shanghai), distinct Chinese lab lineage, different pretraining philosophy
 
 A **DeepSeek V4 Flash** judge synthesizes all 4 outputs into a single POV report, surfacing consensus, contradictions, gaps, and unique insights. The moderator in the final phase reconciles genuine intellectual diversity across perspectives, not synthetic persona variation.
 
@@ -41,7 +41,7 @@ Standard STORM relies purely on simulated experts. We added a mandatory practiti
 
 If a claim cannot be backed by a source or the human's lived experience, it gets cut. Reality beats theory.
 
-**Novelty claim, accurately bounded:** Co-STORM (EMNLP 2024) is a published human-in-the-loop STORM variant -- but its human participates **during** the interview/discourse phase to steer questions as they happen. This pipeline's human validates **conclusions after synthesis and before curation**. Those are different stages with different jobs. No published STORM variant we are aware of includes a post-synthesis, pre-curation human validation checkpoint.
+**Novelty claim, accurately bounded:** Co-STORM (EMNLP 2024) is a published human-in-the-loop STORM variant — but its human participates **during** the interview/discourse phase to steer questions as they happen. This pipeline's human validates **conclusions after synthesis and before curation**. Those are different stages with different jobs. No published STORM variant we are aware of includes a post-synthesis, pre-curation human validation checkpoint.
 
 ### Phase 3: Curate and Outline
 Organize interview logs into a clean hierarchical outline. Sections grouped by theme, duplicates removed, contradictions explicitly flagged. Every section mapped to specific sources.
@@ -88,26 +88,33 @@ Once installed, simply ask your agent: *"Run STORM research on [your topic]."*
 
 | Pipeline Stage | Model | Rationale |
 |----------------|-------|-----------|
-| Phase 1: Perspective Discovery | Nemotron 3 Ultra 550B | Frontier reasoning, structured research output |
+| Phase 1: Perspective Discovery | Nemotron 3 Ultra 550B | Strongest orchestrator, purpose-built for agentic workflows |
 | Phase 2: Expert Interview | Fusion: 4 models fused by DeepSeek V4 Flash | 4-model diversity per POV, single fuser cost |
-| Phase 3: Curate and Outline | Nemotron 3 Ultra 550B | Frontier tier, structured output, reliability |
-| Phase 4: Grounded Writing | Nemotron 3 Ultra 550B | Frontier tier, voice consistency for researcher's final review |
-| Phase 5: Moderator/Auditor | Nemotron 3 Ultra 550B | Highest-leverage role; needs frontier reasoning strength |
-| Final Polish | DeepSeek V4 Flash | Fast, precise cleanup at temperature zero -- won't go rogue on prose |
+| Phase 2.5: Human Validation | Brad (no model) | Post-synthesis, pre-curation practitioner checkpoint |
+| Phase 3: Curate and Outline | Nemotron 3 Ultra 550B | Main chain, structured output, reliability |
+| Phase 4: Grounded Writing | Nemotron 3 Ultra 550B | Main chain, voice consistency for researcher's final review |
+| Phase 5: Moderator/Auditor | Nemotron 3 Ultra 550B | Highest-leverage role, needs strongest reasoner |
+| Final Polish | cos-heavy (DeepSeek V4 Flash) | Fast, precise cleanup, temperature zero, won't go rogue on prose |
 
 ### Model Hierarchy (strongest to weakest)
 
-Nemotron 3 Ultra 550B (frontier workhorse) > DeepSeek V4 Flash > gpt-oss-120b (free) > Gemma 4 31B (free) > MiniMax M2.5 (free)
+Nemotron 3 Ultra 550B (frontier workhorse) > DeepSeek V4 Flash (fuser, polish) > Nemotron 3 Super 120B (free) > gpt-oss-120b, Gemma 4 31B, MiniMax M2.5 (fusion panel, parity)
 
 ### Fusion Panel per POV
 
-- `nvidia/nemotron-3-ultra-550b-a55b:free` -- NVIDIA MoE, US agentic RL training (55B active of 550B)
-- `openai/gpt-oss-120b:free` -- OpenAI RLHF, STEM/math strength, matches o4-mini on several benchmarks
+- `nvidia/nemotron-3-ultra-550b-a55b:free` -- NVIDIA, US-origin, agentic RL, Mamba-Transformer hybrid
+- `openai/gpt-oss-120b:free` -- OpenAI, RLHF-heavy, STEM/math strength, Western training
 - `google/gemma-4-31b-it:free` -- Google DeepMind, factual grounding, math, multimodal
-- `minimax/minimax-m2.5:free` -- MiniMax (Shanghai), distinct Chinese lab lineage and pretraining philosophy
+- `minimax/minimax-m2.5:free` -- MiniMax (Shanghai), distinct Chinese lab lineage
 - **Fuser:** `deepseek/deepseek-v4-flash` -- synthesizes all 4 into one report
 
-Four genuinely different training lineages, four different blind spots. The diversity is the intelligence.
+### Fallback Chain (matches config.yaml fallback_chain)
+
+1. Nemotron 3 Ultra 550B (primary -- strongest free model, frontier workhorse)
+2. Nemotron 3 Super 120B (free -- stable, strong tool caller)
+3. DeepSeek V4 Flash (paid -- last resort safety net)
+
+If Nemotron 3 Ultra is unavailable (rate limit, outage), the fallback chain automatically promotes the next model. Do not escalate as a reflex.
 
 ## Results
 

@@ -2,7 +2,7 @@
 
 **Research method:** Fusion multi-model synthesis (4-model panel with judge)
 **Date:** 2026-06-29
-**Models:** Owl Alpha + Nemotron 3 Ultra 550B + gpt-oss-120b + Gemma 4 31B, fused by DeepSeek V4 Flash
+**Models:** Nemotron 3 Ultra 550B + gpt-oss-120b + Gemma 4 31B + MiniMax M2.5, fused by DeepSeek V4 Flash
 **Topic:** Architectural differences between typical STORM implementations and production-grade systems
 
 ---

@@ -4,7 +4,7 @@ description: Run STORM-style multi-perspective research using OpenRouter Fusion 
 license: MIT
 metadata:
   author: Brad Trnavsky
-  version: "0.2.0"
+  version: "0.3.0"
   category: research
   compatible_with:
     - Hermes
@@ -14,7 +14,7 @@ metadata:
 
 # STORM Research Method
 
-**Version:** 0.2.0
+**Version:** 0.3.0
 **Author:** Brad Trnavsky
 **License:** MIT
 **Description:** STORM research method (Stanford, NAACL 2024) adapted for content creation. Five-phase pipeline: perspective discovery, expert interview (simulated + human), curation/outline, grounded writing, moderator audit. Includes STORM-Light (single-model) and STORM-Full (multi-model) modes.
@@ -97,7 +97,7 @@ Perspective [N]: [Persona Name]
 | RAG / Knowledge Store | Vector + full-text search | Surface cross-domain connections from prior knowledge |
 | Session / Memory Search | Prior conversation search | Run BEFORE fresh research to avoid redundancy |
 
-**STORM-Light process:** One model simulates all perspectives sequentially. Ground each persona in real web search. Capture sources per claim.
+**STORM-Light process:** Nemotron 3 Ultra simulates all perspectives sequentially. Ground each persona in real web search. Capture sources per claim.
 
 **STORM-Full process:** Dispatch 8 independent research runs in parallel. Each run owns ONE perspective. Query the OpenRouter Fusion endpoint for each perspective. The Fusion API will automatically fan the prompt out to the 4-model panel and return the DeepSeek synthesized report. Do not attempt to manually route to individual models in Phase 2.
 
@@ -141,6 +141,22 @@ Sources: [list of URLs/references]
 **Hard rule:** If the human cannot confirm a claim from experience AND it cannot be backed by a real source, mark it `unverified`.
 
 **Why this matters:** No published STORM implementation replaces the simulated expert with a real human practitioner. The human catches framing errors, adds nuance from lived experience, and stress-tests conclusions against reality.
+
+### Phase 2.5: Human Validation Checkpoint
+
+**Role:** Interviewer (AI) + Expert (Human)
+
+**Task:** Post-synthesis, pre-curation reality check. The AI presents the fused POV reports to the human practitioner for validation before curation begins.
+
+**Process:**
+1. Present each fused POV report: "The Fusion panel concluded X. From your experience, does this track? What's missing? What's wrong?"
+2. Human validates, corrects, or adds angles the panel missed.
+3. Claims that cannot be backed by sources OR human experience are flagged `unverified`.
+4. Only validated findings proceed to Phase 3.
+
+**Hard rule:** If the human cannot confirm a claim from experience AND it cannot be backed by a real source, mark it `unverified`.
+
+**Novelty claim:** Co-STORM (EMNLP 2024) places the human *during* the interview/discourse phase. This pipeline places the human *after synthesis and before curation*. Different stage, different job. No published STORM variant we are aware of includes a post-synthesis, pre-curation human validation checkpoint.
 
 ### Phase 3: Curate and Outline
 
@@ -221,30 +237,46 @@ Sources: [list of URLs/references]
 
 Both are explicitly flagged in the Co-STORM paper and must be named checks in Phase 5.
 
-## Model Assignment (Recommended)
+## Model Assignment
 
 | Pipeline Stage | Light Mode | Full Mode | Rationale |
 |----------------|-----------|-----------|-----------|
-| Phase 1: Perspective Discovery | nemotron-3-ultra-550b:free | nemotron-3-ultra-550b:free | Strongest free orchestrator, built for agentic workflows |
-| Phase 2: Simulated Interview | nemotron-3-ultra-550b:free (single, sequential) | OpenRouter Fusion panel (see below) | Light: speed. Full: 4-model diversity per POV |
-| Phase 3: Curate and Outline | nemotron-3-ultra-550b:free | nemotron-3-ultra-550b:free | Structured, reliable |
-| Phase 4: Grounded Writing | nemotron-3-ultra-550b:free | nemotron-3-ultra-550b:free | Voice consistency for researcher's final review |
-| Phase 5: Moderator/Auditor | nemotron-3-ultra-550b:free | nemotron-3-ultra-550b:free | Highest-leverage role; needs frontier reasoning strength |
-| Final Polish | deepseek-v4-flash | deepseek-v4-flash | Fast, precise cleanup at temperature zero -- won't go rogue on prose |
+| Phase 1: Perspective Discovery | Nemotron 3 Ultra | Nemotron 3 Ultra | Strongest orchestrator, purpose-built for agentic workflows |
+| Phase 2: Simulated Interview | Nemotron 3 Ultra (single, sequential) | OpenRouter Fusion panel | Light: speed. Full: 4-model diversity per POV |
+| Phase 2.5: Human Validation | Brad (no model) | Brad (no model) | Post-synthesis, pre-curation practitioner checkpoint |
+| Phase 3: Curate and Outline | Nemotron 3 Ultra | Nemotron 3 Ultra | Main chain, structured output, reliability |
+| Phase 4: Grounded Writing | Nemotron 3 Ultra | Nemotron 3 Ultra | Main chain, voice matching for hand-edit |
+| Phase 5: Moderator/Auditor | Nemotron 3 Ultra | Nemotron 3 Ultra | Highest-leverage role, needs strongest reasoner |
+| Final Polish | cos-heavy (DeepSeek V4 Flash) | cos-heavy (DeepSeek V4 Flash) | Fast, precise cleanup, temperature zero, won't go rogue on prose |
 
-### Fusion Panel (Full Mode, Phase 2)
+**Full mode panel config (Phase 2 Fusion only):**
+```json
+{
+  "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+  "plugins": [{
+    "id": "fusion",
+    "analysis_models": [
+      "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "openai/gpt-oss-120b:free",
+      "google/gemma-4-31b-it:free",
+      "minimax/minimax-m2.5:free"
+    ],
+    "model": "deepseek/deepseek-v4-flash"
+  }]
+}
+```
 
-- `nvidia/nemotron-3-ultra-550b-a55b:free` -- NVIDIA MoE, US agentic RL training
-- `openai/gpt-oss-120b:free` -- OpenAI RLHF, STEM/math strength
-- `google/gemma-4-31b-it:free` -- Google DeepMind, factual grounding, math, multimodal
-- `minimax/minimax-m2.5:free` -- MiniMax (Shanghai), distinct Chinese lab lineage
-- **Fuser:** `deepseek/deepseek-v4-flash` -- synthesizes all 4 into one report
+**Fallback chain:** Nemotron Ultra → Nemotron Super 120B → DeepSeek V4 Flash
 
-Four genuinely different training lineages, four different blind spots. The diversity is the intelligence.
+**Panel diversity rationale:** Four distinct training lineages, four different blind spots:
+- Nemotron Ultra (NVIDIA) — US-origin, agentic RL, Mamba-Transformer hybrid
+- GPT-OSS 120B (OpenAI) — RLHF-heavy, STEM/math strength, Western training
+- Gemma 4 31B (Google DeepMind) — factual grounding, math, multimodal
+- MiniMax M2.5 (MiniMax, Shanghai) — distinct Chinese lab lineage, different pretraining philosophy
 
-**Fallback chain:** nemotron-3-ultra-550b:free → nemotron-3-super-120b:free → deepseek-v4-flash
+**Thesis:** Frontier-quality research coverage through combining genuinely different small free-tier models — four distinct training lineages, four different blind spots, one judge to arbitrate. The diversity is the intelligence.
 
-**Fallback:** If the strong model hits a reasoning ceiling on the moderator role, escalate to a stronger model. Do not escalate as a reflex.
+**Fallback:** If Nemotron 3 Ultra hits a reasoning ceiling on the moderator role, escalate per fallback chain. Do not escalate as a reflex.
 
 ## Search Stack Detail
 
@@ -276,4 +308,3 @@ This skill is limited to research, synthesis, source tracking, and report writin
 Based on STORM by Shao et al., Stanford Oval Lab, NAACL 2024.
 Co-STORM collaborative extension, EMNLP 2024.
 Reference implementation: github.com/stanford-oval/storm
-
