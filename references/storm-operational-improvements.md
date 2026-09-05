@@ -51,17 +51,17 @@
   "topic": "...",
   "pov_count": 7,
   "phases": {
-    "phase1-discovery": { "model": "deepseek-v4-flash", "latency_s": 45, "status": "ok" },
+    "phase1-discovery": { "model": "nemotron-3-ultra-550b", "latency_s": 45, "status": "ok" },
     "phase2-interview": { "model": "fusion-panel", "latency_s": 312, "status": "ok", "povs_completed": 7 },
-    "phase3-curate": { "model": "owl-alpha", "latency_s": 28, "status": "ok" },
-    "phase4-write": { "model": "owl-alpha", "latency_s": 180, "status": "ok" },
-    "phase5-moderate": { "model": "owl-alpha", "latency_s": 67, "status": "ok" }
+    "phase3-curate": { "model": "nemotron-3-ultra-550b", "latency_s": 28, "status": "ok" },
+    "phase4-write": { "model": "nemotron-3-ultra-550b", "latency_s": 180, "status": "ok" },
+    "phase5-moderate": { "model": "nemotron-3-ultra-550b", "latency_s": 67, "status": "ok" }
   },
   "tokens": { "input": 45000, "output": 12000 },
   "cost_usd": 0.84,
   "outcome": "complete",
   "povs_flagged": ["pov-05-safety"],
-  "researcher_checkpoints": ["phase1", "phase5"]
+  "researcher_checkpoints": ["phase1", "phase2.5", "phase5"]
 }
 ```
 
