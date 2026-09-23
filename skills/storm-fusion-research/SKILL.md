@@ -42,6 +42,19 @@ Mode 3 needs one fanout engine, human's choice: OpenRouter Fusion (key required)
 MoA (a `moa` preset with reference models plus an aggregator). The human supplies the exact
 model lineup per run. Never invent a default lineup.
 
+One-time operator setup for per-call model picks (consent-gated, fail-closed without it):
+
+```yaml
+plugins:
+  entries:
+    storm-fusion-research:
+      llm:
+        allow_provider_override: true
+        allow_model_override: true
+```
+
+Without these flags the tool runs on the active model only and says so in its error.
+
 ## How to Run
 
 Pick the mode with the human, cast the seats, run the procedure below. In Hermes the skill
@@ -70,8 +83,12 @@ GREENLIGHT shortcut: "greenlight" or "go" runs the cast as written.
 ### 2. Interview (per mode)
 
 Mode 1: one model interviews each seat sequentially. Mode 2: one `delegate_task` subagent
-per seat, parallel, each briefed with its seat card only. Mode 3: each seat runs its own
-fanout (MoA preset or Fusion call) with the human-chosen lineup; lineups may differ per seat.
+per seat, parallel, each briefed with its seat card only. Mode 3: call `storm_run_panel`
+with the topic, the seat cards, and the human-chosen lineup; each seat fans out across
+the lineup and the tool returns seat reports plus the judge synthesis in one round trip.
+Resolve a named MoA preset to its reference models plus aggregator first (read the preset
+from config, pass provider/model pairs inline); lineups may differ per seat only by
+separate tool calls per seat group.
 
 Search stack per seat, in order: `hindsight_recall` first (prior thinking, zero cost), then
 `web_search` and `web_extract` to ground answers, vault or RAG for cross-domain connections.
