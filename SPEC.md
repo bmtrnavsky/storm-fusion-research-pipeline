@@ -1,61 +1,45 @@
-# STORM Fusion Research Pipeline -- Quick Reference
+# Storm Panel -- Quick Reference (v0.4.0)
 
-**This is a methodology reference and skill specification, not runnable code.**
+**Methodology reference, not runnable code. No model names appear here by design:
+the human picks engines and lineups every run.**
 
-An adaptation of Stanford's STORM method (NAACL 2024) for content creation, using OpenRouter Fusion for multi-model diversity.
+Human-gated perspective panel. One question, several seats, one judge, one human.
+Stanford STORM asks how to write the article; this asks how to make the call.
+
+## Modes
+
+**Mode 1 Solo:** 2-4 seats, one model role-plays sequentially. Diversity from POV only.
+No keys. Routine questions, established territory, or no human available.
+
+**Mode 2 Native panel:** 2-12 seats, one `delegate_task` subagent per seat in parallel.
+Diversity from POV only. No keys. Human's model pick runs throughout.
+
+**Mode 3 Full panel:** 2-12 seats, each seat its own fanout (OpenRouter Fusion or Hermes
+MoA preset, lineup chosen by the human). Diversity from POV times models. Engine key
+required. Pillar pieces, ambitious claims, shared-blind-spot risk.
+
+## Gates (human decides, judge recommends)
+
+1. Cast: orchestrator proposes seats and count from complexity, human approves or amends.
+2. Validation: fused seat reports checked pre-curation, only validated findings proceed.
+3. Verdict: judge recommends with weighted contradictions, human makes the call.
+4. Audit: moderator sweeps bias transfer, red herrings, missing seats, open contradictions.
 
 ## Pipeline
 
-Phase 1: Perspective Discovery (Nemotron 3 Ultra maps 6-8 expert viewpoints, human approves)
-Phase 2: Expert Interview (Fusion panel: Nemotron Ultra + GPT-OSS 120B + Gemma 4 31B + MiniMax M2.5, fused by DeepSeek V4 Flash)
-Phase 2.5: Human Validation Checkpoint (Brad validates post-synthesis, pre-curation)
-Phase 3: Curate and Outline (Nemotron 3 Ultra, living, evolving structure)
-Phase 4: Grounded Writing (Nemotron 3 Ultra, every claim sourced, "needs more research" over padding)
-Phase 5: Moderator Pass (Nemotron 3 Ultra, audit for source bias and false connections -- highest-leverage role)
-Final Polish (cos-heavy DeepSeek V4 Flash, temperature zero)
+Cast -> interview (per mode) -> human validation -> outline -> grounded writing ->
+moderator audit -> polish. Unsourced claims marked `unverified`. Thin sections say
+`needs more research`. Full procedure: `skills/storm-fusion-research/SKILL.md`.
+Design spec: `PANEL-SPEC.md`.
 
-## Two Modes
+## Native cross-references
 
-**STORM-Full (Multi-Model):** Perspectives in parallel, each processed by the OpenRouter Fusion panel. For pillar-level content, ambitious claims, cross-domain synthesis.
-
-**STORM-Light (Single-Model):** Nemotron 3 Ultra role-plays all perspectives sequentially. For routine posts, time-sensitive pieces. Faster, cheaper.
-
-## Model Assignment
-
-| Phase | Model |
-|-------|-------|
-| Phase 1: Perspective Discovery | Nemotron 3 Ultra |
-| Phase 2: Expert Interview (Full) | Fusion panel (4 models) |
-| Phase 2: Expert Interview (Light) | Nemotron 3 Ultra (sequential) |
-| Phase 2.5: Human Validation | Brad (no model) |
-| Phase 3: Curate and Outline | Nemotron 3 Ultra |
-| Phase 4: Grounded Writing | Nemotron 3 Ultra |
-| Phase 5: Moderator/Auditor | Nemotron 3 Ultra |
-| Final Polish | cos-heavy (DeepSeek V4 Flash) |
-
-**Fusion panel per POV:**
-- Nemotron 3 Ultra 550B (NVIDIA, US-origin, agentic RL, Mamba-Transformer hybrid)
-- GPT-OSS 120B (OpenAI, RLHF-heavy, STEM/math, Western training)
-- Gemma 4 31B (Google DeepMind, factual grounding, math, multimodal)
-- MiniMax M2.5 (MiniMax Shanghai, distinct Chinese lab lineage)
-- Fuser: DeepSeek V4 Flash
-
-**Fallback chain:** Nemotron Ultra → Nemotron Super 120B → DeepSeek V4 Flash
-
-## Search Stack
-
-Web search: internet facts and current data
-RAG / Knowledge store: prior knowledge and cross-domain connections
-Session / Memory search: prior thinking (run first to avoid redundancy)
-
-## When to Use
-
-STORM-Full: pillar-level content, major research pieces, cross-domain synthesis
-STORM-Light: regular posts, time-sensitive pieces, established domain knowledge
+Citations: `grounded-citations`. Papers: `arxiv`. Knowledge base: `llm-wiki`.
+Fanout mechanics: Hermes MoA docs. Prior thinking first: `hindsight_recall`.
 
 ## License
 
-MIT
+MIT.
 
 ## Credits
 

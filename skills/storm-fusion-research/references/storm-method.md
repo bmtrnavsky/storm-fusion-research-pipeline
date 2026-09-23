@@ -247,8 +247,8 @@ See `references/search-hierarchy.md` for the full rationale and implementation p
 
 Before starting Phase 2, verify which search tools are actually available. Do not assume any specific tool is configured. Check in this order:
 
-1. `check your agent framework's configuration | grep -i search` -- reveals configured search backends
-2. `env | grep -i "PERPLEX\|SEARCH\|API"` -- reveals available API keys in env
+1. Check your agent framework's configuration for search backends -- reveals configured search without touching secrets
+2. Check the skill's Prerequisites section -- keys live in config files or secret stores, never dumped to output
 3. `check your agent framework's configuration 2>/dev/null | grep -i "perplex"` -- keys may live in config.yaml but not env
 4. Default available tools: `web_search`, `web_extract`, `conversation history search`, RAG (vector database)
 
