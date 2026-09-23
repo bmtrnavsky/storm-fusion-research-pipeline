@@ -1,5 +1,7 @@
 # Storm Panel Research
 
+![Storm Panel Research](docs/social-preview.png)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Hermes Plugin](https://img.shields.io/badge/Hermes-Plugin-teal.svg)](https://hermes-agent.nousresearch.com/docs)
 [![Version](https://img.shields.io/badge/version-0.4.0-orange.svg)](SPEC.md)
