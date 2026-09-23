@@ -136,7 +136,7 @@ report, judge weighs, human decides.
 
 ## Results
 
-Tested against RAG chatbots and STORM+QA across seven metrics (Co-STORM human evaluation, 20 participants):
+Automatic evaluation on WildSeek with simulated users (Table 3, Jiang et al., Co-STORM, EMNLP 2024). Scores are rubric means on a 1-5 scale; dagger marks denote significant gains over both baselines:
 
 | Metric | RAG Chatbot | STORM+QA | Co-STORM |
 |--------|-------------|----------|----------|
