@@ -92,6 +92,17 @@ fails closed rather than guessing. Use these principles instead of a fixed list.
 **If a model fails mid-run:** stop and tell the human, who picks the replacement. Do not
 silently swap in another model, since that changes who is actually on the panel.
 
+## Nested fanout (Fusion and MoA)
+
+A lineup slot does not have to be one model. It can be a Fusion or MoA call: the engine
+fans the seat's question out to its own models, merges them, and returns one answer. The
+panel then fans out again across seats. That gives three layers of synthesis: the engine's
+merge inside each slot, the judge across seats, and the human at the gates.
+
+Use it when a seat is high stakes. Watch the cost: calls multiply to seats x slots x inner
+models, plus a merge per slot. Keep the lineup small when slots are engines. Keep the
+judge a different model from the engines' mergers, for the same reason as above.
+
 ## Sizing the panel
 
 Size seats to the problem, not to a fixed tier. A societal question can seat a dozen

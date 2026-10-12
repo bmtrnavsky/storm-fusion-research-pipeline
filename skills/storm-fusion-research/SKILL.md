@@ -40,7 +40,8 @@ example `hindsight_recall` if you run that memory provider).
 
 Mode 3 needs one fanout engine, human's choice: OpenRouter Fusion (key required) or Hermes
 MoA (a `moa` preset with reference models plus an aggregator). The human supplies the exact
-model lineup per run. Never invent a default lineup.
+model lineup per run. Never invent a default lineup. A slot can itself be a Fusion or MoA
+call, which nests the fanout (seats x slots x inner models), so size the cost first.
 
 One-time operator setup for per-call model picks (consent-gated, fail-closed without it):
 
