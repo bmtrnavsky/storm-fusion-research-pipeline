@@ -14,6 +14,16 @@ Examples:
     python run_panel.py panel.json --base-url http://localhost:11434/v1 --model <local-model>
     python run_panel.py panel.json --dry-run     # print the prompts, call nothing
 
+A lineup slot can also be a mini mixture-of-agents (nested fanout). Instead of one model,
+give it reference models and an aggregator, mirroring Hermes MoA naming:
+
+    {"moa": {"reference_models": [{"model": "<a>"}, {"model": "<b>"}],
+             "aggregator": {"model": "<merge-model>"}}}
+
+The script asks every reference model the seat's question, then the aggregator merges
+their answers into one seat view. One level only, like Hermes MoA. This is a local
+stand-in: it does not call Hermes presets (run the Hermes plugin for those).
+
 Endpoint and key come from --base-url / STORM_BASE_URL and the env var named by
 --api-key-env (default STORM_API_KEY). A lineup slot can override either with its own
 "base_url" and "api_key_env", which lets one panel span several providers.
@@ -84,6 +94,48 @@ def complete(messages, slot, defaults, temperature, max_tokens, timeout):
     return text, model, tokens
 
 
+MERGE_PROMPT = (
+    "You are the aggregator for one seat on a perspective panel. Several advisor models "
+    "answered the same question from the same seat. Merge their answers into one seat view.\n"
+    "Keep every source an advisor cited. Where advisors disagree, say so and name who said "
+    "what; never average a disagreement away. Keep anything an advisor marked unverified "
+    "marked unverified. End with 3-5 key findings."
+)
+
+
+def run_slot(messages, slot, defaults, temperature, max_tokens, timeout):
+    """Run one lineup slot. Returns (text, label, tokens).
+
+    A plain slot is one model call. A slot with a "moa" block fans out again: every
+    reference model answers, then the aggregator merges them (nested fanout).
+    """
+    moa = slot.get("moa")
+    if not moa:
+        return complete(messages, slot, defaults, temperature, max_tokens, timeout)
+
+    refs = moa.get("reference_models") or []
+    agg = moa.get("aggregator")
+    if not refs or not agg:
+        raise ValueError(
+            "A moa slot needs reference_models and an aggregator, each with a model. "
+            "This script never picks a model for you."
+        )
+    answers, labels, total = [], [], 0
+    for ref in refs:
+        text, model, tokens = complete(messages, ref, defaults, temperature, max_tokens, timeout)
+        answers.append((model, text))
+        labels.append(model)
+        total += tokens or 0
+    question = messages[0]["content"]
+    advisors = "\n\n".join(f"--- advisor {m} ---\n{t}" for m, t in answers)
+    merged, agg_model, tokens = complete(
+        [{"role": "user", "content": f"{MERGE_PROMPT}\n\nQuestion:\n{question}\n\n{advisors}"}],
+        agg, defaults, temperature, max_tokens, timeout,
+    )
+    total += tokens or 0
+    return merged, f"moa({'+'.join(labels)} -> {agg_model})", total or None
+
+
 def parse_json(text):
     """Parse the judge's JSON, tolerating a code fence. Falls back to raw text."""
     cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
@@ -127,13 +179,19 @@ def main(argv=None):
             print(_seat_prompt(topic, seat)[0]["content"], end="\n\n")
         print("=== judge (reports are filled in at run time) ===")
         print(_judge_prompt(topic, []) + JSON_HINT)
+        per_seat = sum(
+            len((sl.get("moa") or {}).get("reference_models") or []) + 1 if sl.get("moa") else 1
+            for sl in lineup
+        )
+        print(f"\nCalls this run: {len(seats)} seats x lineup = {len(seats) * per_seat} "
+              f"seat-side calls, plus 1 judge call.")
         return 0
 
     reports, usage = [], []
     try:
         for seat in seats:
             for slot in lineup:
-                text, model, tokens = complete(
+                text, model, tokens = run_slot(
                     _seat_prompt(topic, seat), slot, defaults,
                     args.temperature, args.max_tokens, args.timeout,
                 )

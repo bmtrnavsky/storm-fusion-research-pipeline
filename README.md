@@ -114,9 +114,22 @@ plugins:
       llm:
         allow_provider_override: true
         allow_model_override: true
+        # Optional but safer: limit what the plugin can reach.
+        # allowed_providers: [openrouter, moa]
+        # allowed_models: ["*"]
 ```
 
+To use a Hermes MoA preset as a lineup slot, pass `{"provider": "moa", "model": "<preset>"}`.
+Hermes runs the inner fanout with your own keys and presets. This is not yet confirmed to work
+through plugins on every Hermes version, so run a two-seat test first. If it is refused, the
+error says what to try.
+
 See `skills/storm-fusion-research/SKILL.md` for the full procedure.
+
+## Use it in other agents
+
+Claude Code, Codex, OpenCode, OpenWork, and Pi can all load the skill. See
+[`docs/use-in-other-tools.md`](docs/use-in-other-tools.md).
 
 ## Use it without Hermes
 
