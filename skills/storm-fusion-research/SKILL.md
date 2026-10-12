@@ -1,7 +1,7 @@
 ---
 name: storm-fusion-research
 description: Research hard questions with human-gated perspective panels.
-version: 0.4.0
+version: 0.5.0
 author: Brad Trnavsky
 license: MIT
 platforms: [linux, macos, windows]
