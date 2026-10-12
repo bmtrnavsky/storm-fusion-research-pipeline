@@ -147,3 +147,6 @@ If you already run an agent framework, you do not need either path above. Reuse 
 A mode 3 run makes `seats x models` seat calls plus one judge call. Two seats and three
 models is seven calls. Twelve seats and four models is forty-nine. Run `--dry-run` and
 count before you commit.
+
+If a slot points at a Fusion or MoA style endpoint, that slot fans out again behind the
+scenes. Multiply by the inner model count, and add a merge call per slot.

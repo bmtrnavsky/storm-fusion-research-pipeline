@@ -33,13 +33,21 @@ Past ~4 seats, use mode 2 or 3.
 ## Engines (mode 3, human picks the lineup)
 
 - **OpenRouter Fusion.** Buys training-lineage diversity. Exists today.
-- **Hermes MoA** (`moa` toolset, `/moa` command, presets with `reference_models` plus
-  `aggregator`). Buys home field: own keys, own bill, no round trip. Exists today.
+- **Hermes MoA** (presets under a top-level `moa` config key, each with `reference_models`
+  plus one `aggregator`; a preset shows up as a selectable model under the `moa` provider).
+  Buys home field: own keys, own bill, no round trip. Exists today.
 - Method is engine-agnostic. A future native MoE slots in without rewriting the method.
 
 Per-seat fanout mapping: MoA reference models are the seat's brain trust (lineups may differ
 per seat: shop-floor models for the associate, systems models for engineering). The MoA
 aggregator synthesizes the seat view. The panel judge synthesizes across seats.
+
+**Nested fanout.** Mode 3 can fan out twice. The outer fanout is seats x lineup slots. A
+slot may itself be a Fusion or MoA call, which fans out again to its own models and merges
+them before returning one answer. Calls per run: seats x slots x inner models, plus one
+merge per slot, plus the judge. Hermes MoA allows one inner level only (a preset's
+aggregator cannot be another MoA preset). Whether `ctx.llm` accepts a MoA preset as a slot
+(`provider: moa`) is unverified; test it on your install before relying on it.
 
 ## Cast rule (dynamic sizing)
 
