@@ -9,7 +9,7 @@ metadata:
   hermes:
     tags: [research, perspectives, panel, judge, reports, content]
     category: research
-    related_skills: [grounded-citations, arxiv, llm-wiki]
+    related_skills: [grounded-citations, arxiv]
 ---
 
 # Storm Panel Skill
@@ -30,13 +30,13 @@ Do NOT use for quick lookups, single facts, or fast answers. Do NOT use when no 
 available for checkpoints: without the human this is just roleplay, run mode 1 only.
 
 Prefer native skills when the job is narrower: `grounded-citations` for citation mechanics,
-`arxiv` for papers, `llm-wiki` for the knowledge base, one-shot deep answers from a
-research tool. This skill orchestrates; those skills execute.
+`arxiv` for papers, one-shot deep answers from a research tool. This skill orchestrates; those skills execute.
 
 ## Prerequisites
 
 Modes 1 and 2 need nothing beyond the standard toolset: `web_search`, `web_extract`,
-`hindsight_recall`, `delegate_task`, `skill_view`.
+`delegate_task`, `skill_view`. A memory or notes recall tool is optional but useful (for
+example `hindsight_recall` if you run that memory provider).
 
 Mode 3 needs one fanout engine, human's choice: OpenRouter Fusion (key required) or Hermes
 MoA (a `moa` preset with reference models plus an aggregator). The human supplies the exact
@@ -90,8 +90,9 @@ Resolve a named MoA preset to its reference models plus aggregator first (read t
 from config, pass provider/model pairs inline); lineups may differ per seat only by
 separate tool calls per seat group.
 
-Search stack per seat, in order: `hindsight_recall` first (prior thinking, zero cost), then
-`web_search` and `web_extract` to ground answers, vault or RAG for cross-domain connections.
+Search stack per seat, in order: your memory or notes recall tool first if you have one (prior
+thinking, zero cost), then `web_search` and `web_extract` to ground answers, then a knowledge
+base or RAG tool if you have one for cross-domain connections.
 Synthesis-forcing queries ("what does research say about X"), not topic queries.
 
 Per seat output: Q/A turns with sources, 3-5 key findings, source list. Hard rule: any
@@ -140,5 +141,6 @@ earned, moderator findings with human signoff. Missing any artifact, the run is 
 ## Credits
 
 Based on STORM by Shao et al., Stanford Oval Lab, NAACL 2024, and Co-STORM, EMNLP 2024.
-Reference implementation: github.com/stanford-oval/storm. Method background (v0.3 era, model
-tables superseded): `references/storm-method.md`. Design spec: repo root `PANEL-SPEC.md`. MIT.
+Reference implementation: github.com/stanford-oval/storm. Method background and model-choosing
+guidance: `references/storm-method.md`. Design spec: repo root `PANEL-SPEC.md`. Not on
+Hermes? See `docs/use-without-hermes.md`. MIT.

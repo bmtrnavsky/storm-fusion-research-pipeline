@@ -2,6 +2,7 @@
 
 **Status:** Next build phase -- documented but not implemented yet.
 **Last updated:** 2026-06-29
+**Vocabulary:** written against v0.3. Read POV as seat, tier as mode, and fuser as judge (v0.4.0 terms). Model IDs below are placeholders.
 
 ## 1. Trace Context
 
@@ -14,8 +15,8 @@
   "run_id": "20260629-192339",
   "phase": "phase2-interview",
   "pov_id": "pov-03-skeptic",
-  "model": "fusion:4-model-panel",
-  "fuser": "deepseek/deepseek-v4-flash"
+  "model": "<provider>/<model>",
+  "judge": "<provider>/<model>"
 }
 ```
 
@@ -47,15 +48,15 @@
 {
   "run_id": "20260629-192339",
   "timestamp": "2026-06-29T19:23:39-05:00",
-  "tier": "mid",
+  "mode": 3,
   "topic": "...",
   "pov_count": 7,
   "phases": {
-    "phase1-discovery": { "model": "nemotron-3-ultra-550b", "latency_s": 45, "status": "ok" },
-    "phase2-interview": { "model": "fusion-panel", "latency_s": 312, "status": "ok", "povs_completed": 7 },
-    "phase3-curate": { "model": "nemotron-3-ultra-550b", "latency_s": 28, "status": "ok" },
-    "phase4-write": { "model": "nemotron-3-ultra-550b", "latency_s": 180, "status": "ok" },
-    "phase5-moderate": { "model": "nemotron-3-ultra-550b", "latency_s": 67, "status": "ok" }
+    "phase1-discovery": { "model": "<model-id>", "latency_s": 45, "status": "ok" },
+    "phase2-interview": { "model": "<lineup>", "latency_s": 312, "status": "ok", "povs_completed": 7 },
+    "phase3-curate": { "model": "<model-id>", "latency_s": 28, "status": "ok" },
+    "phase4-write": { "model": "<model-id>", "latency_s": 180, "status": "ok" },
+    "phase5-moderate": { "model": "<model-id>", "latency_s": 67, "status": "ok" }
   },
   "tokens": { "input": 45000, "output": 12000 },
   "cost_usd": 0.84,
@@ -91,7 +92,7 @@
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
 | 1 | Idempotent POV Checkpointing | Medium | Prevents wasted work on partial failures |
-| 2 | Dead Queue | Low | No POVs silently lost |
+| 2 | Dead Letter Queue | Low | No POVs silently lost |
 | 3 | Per-Run Structured Log | Low | Data-driven optimization |
 | 4 | Trace Context | Medium | Debugging at scale |
 

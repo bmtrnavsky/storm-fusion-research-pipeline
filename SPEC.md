@@ -34,8 +34,9 @@ Design spec: `PANEL-SPEC.md`.
 
 ## Native cross-references
 
-Citations: `grounded-citations`. Papers: `arxiv`. Knowledge base: `llm-wiki`.
-Fanout mechanics: Hermes MoA docs. Prior thinking first: `hindsight_recall`.
+Citations: `grounded-citations`. Papers: `arxiv`.
+Fanout mechanics: Hermes MoA docs. Prior thinking first: your memory or notes recall tool,
+if you have one.
 
 ## License
 

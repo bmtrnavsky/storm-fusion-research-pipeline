@@ -114,6 +114,13 @@ plugins:
 
 See `skills/storm-fusion-research/SKILL.md` for the full procedure.
 
+## Use it without Hermes
+
+The method works anywhere. Paste the prompts into any chat assistant, or run
+`run_panel.py` against any OpenAI-compatible endpoint for real multi-model fanout
+(standard library only, `--dry-run` to preview). You pick every model. See
+`docs/use-without-hermes.md`.
+
 ## Example run
 
 Two seats, active model, one tool call:
