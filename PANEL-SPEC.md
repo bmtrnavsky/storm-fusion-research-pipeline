@@ -1,7 +1,7 @@
 # Storm Panel Spec v2: Human-in-the-Loop Perspective Panel
 
-**Status:** spec, not built. **Parent:** Stanford STORM (Shao et al., NAACL 2024) and Co-STORM (EMNLP 2024).
-**Repo:** `bmtrnavsky/storm-fusion-research-pipeline`. **Version target:** 0.4.0.
+**Status:** implemented in v0.4.0 (skill plus `storm_run_panel` tool). **Parent:** Stanford STORM (Shao et al., NAACL 2024) and Co-STORM (EMNLP 2024).
+**Repo:** `bmtrnavsky/storm-fusion-research-pipeline`. **Version:** 0.4.0.
 
 ## Identity
 
@@ -53,9 +53,9 @@ shortcut ("greenlight", "go") proceeds as proposed.
 ## The five phases (unchanged skeleton, new casting)
 
 1. **Perspective discovery.** Orchestrator maps seats, human approves/amends the cast.
-2. **Interviews.** Per mode above. Search stack per seat: `hindsight_recall` first (prior
-   thinking, no cost), then `web_search` / `web_extract` for grounding, vault/RAG for
-   cross-domain connections. Hard rule: unsourced factual claims are marked `unverified`.
+2. **Interviews.** Per mode above. Search stack per seat: your memory or notes recall tool
+   first if you have one (prior thinking, no cost), then `web_search` / `web_extract` for
+   grounding, then a knowledge base or RAG tool for cross-domain connections. Hard rule: unsourced factual claims are marked `unverified`.
 3. **Post-synthesis human validation.** Fused seat reports go to the human pre-curation:
    "the panel concluded X, does this track, what is missing, what is wrong." Only validated
    findings proceed. (No published STORM variant gates here.)
@@ -77,9 +77,9 @@ shortcut ("greenlight", "go") proceeds as proposed.
 
 - Citation mechanics and `unverified` ledger: `grounded-citations` skill.
 - Conference papers and BibTeX: `arxiv` skill.
-- Persistent knowledge base layer: `llm-wiki` skill.
 - Multi-model fanout mechanics: MoA docs (`docs/user-guide/features/mixture-of-agents`).
-- Parallel seats: `delegate_task`. Prior thinking: `hindsight_recall`.
+- Parallel seats: `delegate_task`. Prior thinking: any memory or notes recall tool you run
+  (optional).
 
 ## Cost guidance (mode picker)
 
@@ -88,14 +88,17 @@ shortcut ("greenlight", "go") proceeds as proposed.
 - Time-sensitive, news-driven, established territory: mode 1.
 - No human available for checkpoints: mode 1 only. Modes 2 and 3 require the human.
 
-## Packaging (when spec is approved)
+## Packaging
 
 - Plugin scaffold: `plugin.yaml` (no `requires_env`; Full-engine keys stay skill-level
   prerequisites so Light/Native install clean), `__init__.py` with `ctx.register_skill`,
   skill at `skills/storm-fusion-research/SKILL.md`, method docs folded to references.
 - SKILL.md to Hermes HARDLINE: short description, human-first author, native tool names
   in backticks, no hardcoded model picks, no personal names in checkpoints.
-- Validate with `hermes plugins validate`, tag, release, catalog PR. Category: tools.
+- Status: [x] plugin scaffold and tool shipped in v0.4.0. [ ] `hermes plugins validate` pass.
+  [ ] tagged release. [ ] catalog PR (category: tools). Tick these off as they land.
+- Not on Hermes: `docs/use-without-hermes.md` covers a copy-paste path and a standalone
+  script (`run_panel.py`) that works with any OpenAI-compatible endpoint.
 
 ## Credits
 

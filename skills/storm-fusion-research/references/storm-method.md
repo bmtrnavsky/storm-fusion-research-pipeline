@@ -1,316 +1,147 @@
-# STORM Method (Stanford, NAACL 2024)
+# STORM Method, Panel Edition
 
-**Paper:** "Assisting in Writing Wikipedia-like Articles from Scratch with Large Language Models" by Shao et al., Stanford Oval Lab.
-**Follow-up:** Co-STORM (collaborative extension with human-in-the-loop, EMNLP 2024).
-**Reference implementation:** github.com/stanford-oval/storm (29.2k stars)
-**LangGraph port:** github.com/braincrew-lab/STORM-Research-Assistant
-**Public adaptation:** github.com/bmtrnavsky/storm-fusion-research-pipeline
+Method background for the storm-fusion-research skill. Model-agnostic by design: no model
+names appear here, because lineups age fast and the human picks the engine every run.
 
-## Core Insight
+**Source method:** Shao et al., "Assisting in Writing Wikipedia-like Articles from Scratch
+with Large Language Models," Stanford Oval Lab, NAACL 2024.
+**Follow-up:** Co-STORM, Jiang et al., EMNLP 2024 (collaborative discourse with a human).
+**Reference implementation:** [stanford-oval/storm](https://github.com/stanford-oval/storm)
+**This adaptation:** [bmtrnavsky/storm-fusion-research-pipeline](https://github.com/bmtrnavsky/storm-fusion-research-pipeline)
 
-Direct prompting produces shallow, single-perspective questions. STORM solves this by mimicking an investigative journalist: discover multiple perspectives, interview experts, ground every claim in retrievable sources.
+Published evaluation numbers live in the README under Results. They come from the Co-STORM
+paper, not from this repo, so they are not repeated or extended here.
 
-## The Five-Phase Pipeline
+## Core insight
 
-### Phase 1: Perspective Discovery
+Direct prompting produces shallow, single-viewpoint answers. STORM mimics an investigative
+journalist: work out which viewpoints a topic deserves, interview each one, ground claims in
+retrievable sources, then synthesize.
 
-- **Role:** Senior Research Strategist
-- **Task:** Map 6-8 distinct expert perspectives the topic deserves
-- **Output:** For each perspective: persona name, what they care about, sharpest questions they would ask
-- **Key mechanism:** Survey related articles to discover diverse viewpoints automatically
-- **Why it works:** Different perspectives produce different questions; generic prompts produce generic questions
-- **Researcher checkpoint:** Present perspectives to the researcher for approval before proceeding. the researcher can reject, add, or modify. This is the first human checkpoint.
+This adaptation changes the question. Stanford asks how to write the article. This asks how
+to make the call. So the unit of work is a **seat** (a viewpoint with a stake in the
+decision), the output is a recommendation with weighted contradictions, and a human decides.
 
-### Phase 2: Expert Interview (Researcher Modification -- Fusion Architecture)
+## The pipeline and its four human gates
 
-All tiers now use OpenRouter Fusion. Each POV gets 4 analysis models fused into a single report by DeepSeek V4 Flash. POV count is the only variable between tiers.
-
-#### Fusion Panel (all tiers, every POV)
-
-Every POV is researched by 4 models simultaneously, fused into one report:
-
-```json
-{
-  "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
-  "plugins": [{
-    "id": "fusion",
-    "analysis_models": [
-      "nvidia/nemotron-3-ultra-550b-a55b:free",
-      "openai/gpt-oss-120b:free",
-      "google/gemma-4-31b-it:free",
-      "minimax/minimax-m2.5:free"
-    ],
-    "model": "deepseek/deepseek-v4-flash"
-  }]
-}
+```
+Cast -> Interview -> Validate -> Outline -> Write + Verdict -> Audit -> Polish
+gate 1               gate 2                   gate 3          gate 4
 ```
 
-- **Fuser model:** DeepSeek V4 Flash -- synthesizes all 4 analysis model outputs into one coherent POV report
-- **Analysis models:** Nemotron 3 Ultra (NVIDIA, US-origin, agentic RL, Mamba-Transformer hybrid), gpt-oss-120b (OpenAI, RLHF-heavy, STEM/math, Western training), Gemma 4 31B (Google DeepMind, factual grounding, math, multimodal), MiniMax M2.5 (MiniMax Shanghai, distinct Chinese lab lineage)
-- **Cost:** Only the fuser prompt is charged (DeepSeek V4 Flash). All 4 analysis models run free tiers.
-- **Nemotron 3 Ultra** serves as both an analysis model here AND the Phase 5 moderator -- sequential stages, no conflict.
+1. **Cast (gate 1).** The orchestrator maps the seats the question deserves. For each seat:
+   name, what they care about, their sharpest 3 to 5 questions, why the seat matters. Every
+   cast includes one skeptic and one practitioner. The human approves, amends, or adds
+   seats nobody proposed.
+2. **Interview.** Each seat answers its questions from its own viewpoint only, grounded in
+   sources. Seats report to the judge. They do not debate each other.
+3. **Validate (gate 2).** Fused seat reports go to the human before any curation: does this
+   track, what is missing, what is wrong. Only validated findings move on. Claims that are
+   neither sourced nor human-confirmed stay marked `unverified`.
+4. **Outline.** Group findings by theme, remove duplicates, flag contradictions explicitly,
+   and map every section to its sources. The outline stays alive and changes as gaps close.
+5. **Write, with the verdict (gate 3).** Write section by section from the outline. The
+   judge recommends, with contradictions weighted by which seats and what evidence. The
+   human makes the call.
+6. **Audit (gate 4).** An independent moderator pass checks for source-bias transfer,
+   red-herring connections between unrelated facts, missing seats, and unresolved
+   contradictions. Findings go to the human for fixes before final polish.
+
+Why the moderator matters: the Co-STORM evaluation found that removing the moderator hurt
+results more than reducing the number of experts. Keep the audit even when you cut seats.
+
+## Why more than one model
+
+With one model, perspective diversity comes only from the persona prompt. Every seat shares
+the same training data, blind spots, and reasoning habits, so disagreement between seats is
+partly theater. With several models per seat, a disagreement can reflect different training
+and different knowledge, which is worth more to a judge than a persona difference.
+
+This only pays off if the judge is good. Many models feeding a weak synthesizer give you
+more text, not a better call. Treat the judge as the bottleneck.
+
+## Choosing models (the guidance this repo used to hardcode)
+
+You pick the lineup for every run. Nothing in this repo supplies a default, and the tool
+fails closed rather than guessing. Use these principles instead of a fixed list.
+
+**For the seats (the fanout lineup):**
+- **Spread across lineages.** Pick models from different vendors or training approaches,
+  not three sizes of one family. Two models from the same family often share failure modes.
+- **Mix open and closed weights, and mix regions of origin** when the topic is contested or
+  culturally loaded. Different training corpora surface different framings.
+- **Match capability to the seat.** A seat that needs arithmetic or tool use needs a model
+  that can do it. A seat that voices a viewpoint can often run on a cheaper model.
+- **Three or four models per seat is the useful range.** Beyond that, cost grows faster
+  than the new angles you get. One model per seat is mode 2, which is fine for most work.
+
+**For the judge:**
+- Use the strongest reasoner you can afford. The judge reads every seat report and has to
+  weigh contradictions without averaging them away.
+- Prefer a model that reliably follows a JSON schema, since the tool asks for structured
+  output (consensus, weighted contradictions, unresolved items).
+- Keep the judge different from the models that wrote the seat reports when you can. A
+  model grading its own family's output tends to agree with it.
+
+**Before every run, check:**
+1. Each model is reachable right now (keys, quotas, rate limits).
+2. You know what a full run costs: seats x models x tokens per seat, plus one judge call.
+3. The model supports what its seat needs (long context, tools, structured output).
+4. The provider and model override flags are enabled if you are using the Hermes plugin.
+
+**If a model fails mid-run:** stop and tell the human, who picks the replacement. Do not
+silently swap in another model, since that changes who is actually on the panel.
+
+## Sizing the panel
+
+Size seats to the problem, not to a fixed tier. A societal question can seat a dozen
+viewpoints. A broken deploy seats two (design and engineering). The human approves the
+count at the cast gate.
+
+| Mode | Seats | Models | Use when |
+|------|-------|--------|----------|
+| 1 Solo | 2 to 4 | One, sequential | Routine, well-understood, or no human available |
+| 2 Native panel | 2 to 12, parallel | One family or one pick | Cross-domain synthesis you have not connected before |
+| 3 Full panel | 2 to 12, each with fanout | Several per seat | Pillar claims, or where shared blind spots are the risk |
+
+Past about four seats, prefer mode 2 or 3. One model playing twelve experts brings back the
+echo chamber. Modes 2 and 3 need a human at the gates. Without one, run mode 1 only.
+
+## Grounding and search
+
+Whatever tools you have, order them the same way:
+
+1. **Your own prior notes or memory first,** if you keep any. It is free and it stops you
+   rediscovering what you already concluded.
+2. **Web search, then page extraction,** to ground specific claims with real sources.
+3. **Domain tools** (paper search, internal knowledge base) for cross-domain connections.
+
+Write synthesis-forcing queries ("what does the research say about X"), not bare topic
+queries. Before the interview step, confirm which of these tools actually work in your
+setup. If one the human asked for is missing, say so and offer the nearest alternative. Do
+not silently substitute, and never describe a run as a full panel if you only ran a search.
+
+## Hard rules
+
+- A factual claim with no real source, and no human confirmation, is marked `unverified`.
+  Fabrication ends the run.
+- A thin section says `needs more research`. Never pad.
+- Contradictions ship with their weights. Never average them away or smooth them.
+- The judge recommends. The human decides. Ties and value calls go to the human with the
+  trade stated plainly.
+- No new facts appear in the writing step that were not established in the interviews.
 
-#### Tier Selection (POV count only)
+## Pitfalls
 
-| Tier | POVs | Sub-agent Calls | When to Use |
-|------|-------|-----------------|-------------|
-| Light | 4-5 | 4-5 | Routine content, time-sensitive, established territory |
-| Mid | 6-8 | 6-8 | Ambitious posts, cross-domain, echo chamber risk |
-| Full | 8-10 | 8-10 | Pillar content, academic depth, definitive guides |
+- Skipping the gates. Without a human this is roleplay.
+- Fixed seat counts. Resize every run.
+- Letting seats debate. Seats report, only the judge synthesizes.
+- Reimplementing citations. Use a citation-ledger skill if you have one.
+- Hardcoding models. Re-pick the lineup each run.
+- Using mode 3 on a small question. Seats x models is the most expensive shape here.
 
-#### Process (all tiers)
+## Running it
 
-1. Phase 1 outputs N expert POVs with persona + sharpest questions.
-2. **Single search pass per POV** (cost efficiency): For each perspective, run web_search + web_extract (Firecrawl) + Perplexity ONCE. Cache the retrieved sources.
-3. Dispatch N independent delegate_task subagents (batches of 3 respecting max_concurrent_children). Each subagent owns ONE POV and includes the full Fusion config in its prompt.
-4. Each subagent outputs a structured report with cited sources for its assigned POV. The Fusion plugin returns a single fused report -- no per-model reconciliation needed.
-5. Moderator (Nemotron 3 Ultra) collects all N reports.
-6. Researcher interview pass: moderator presents synthesized findings across all reports, highlighting agreements, disagreements, and unique angles. the researcher stress-tests disagreements, gaps, missing angles.
-7. Moderator reconciles contradictions, flags unresolved claims as [VERIFY].
-
-**Cost comparison:**
-
-| Tier | Old Method | Old Calls | Fusion Method | Fusion Calls | Fuser Cost |
-|------|-----------|-----------|---------------|--------------|------------|
-| Light | 1 model x 5 POV | 5 | 4 models x 5 POV | 5 | ~5 prompts DeepSeek |
-| Mid | 2 models x 8 POV | 16 | 4 models x 8 POV | 8 | ~8 prompts DeepSeek |
-| Full | 2 models x 8 POV | 16 | 4 models x 10 POV | 10 | ~10 prompts DeepSeek |
-
-Fusion delivers 2-4x the model diversity per POV at the same or lower dispatch count. The fuser cost (DeepSeek V4 Flash at $0.14/$0.28 per 1M) is negligible.
-
-- **Hard rule:** If a factual claim cannot be backed by a real source AND the researcher cannot confirm from experience, output "unverified" -- fabrication is strictly forbidden.
-- **Researcher modification novelty:** To our knowledge, no published work runs 4-model Fusion perspective interviews with cached source sharing + real human practitioner interview. This is a genuine contribution.
-
-#### Parallel Writing Pattern (all tiers)
-
-Draft the full post while subagent interviews run in background. Revise after all batches return. This parallelizes research and writing without blocking output.
-
-### Phase 2.5: Human Validation Checkpoint
-
-**Role:** Interviewer (AI) + Expert (Human)
-
-**Task:** Post-synthesis, pre-curation reality check. The AI presents the fused POV reports to the human practitioner for validation before curation begins.
-
-**Process:**
-1. Present each fused POV report: "The Fusion panel concluded X. From your experience, does this track? What's missing? What's wrong?"
-2. Human validates, corrects, or adds angles the panel missed.
-3. Claims that cannot be backed by sources OR human experience are flagged `unverified`.
-4. Only validated findings proceed to Phase 3.
-
-**Hard rule:** If the human cannot confirm a claim from experience AND it cannot be backed by a real source, mark it `unverified`.
-
-**Novelty claim:** Co-STORM (EMNLP 2024) places the human *during* the interview/discourse phase. This pipeline places the human *after synthesis and before curation*. Different stage, different job. No published STORM variant we are aware of includes a post-synthesis, pre-curation human validation checkpoint.
-
-### Phase 3: Curate and Outline
-
-- **Role:** Meticulous Editor
-- **Task:** Organize interview logs into clean, hierarchical outline
-- **Output:** Sections grouped by theme, duplicates removed, contradictions between sources explicitly flagged
-- **Key requirement:** Every section mapped to specific sources collected during interviews
-- **Living outline:** Outline is not static. It evolves as interviews surface new information. Use insert and reorganize operations. Mirrors Co-STORM's dynamic mind map concept.
-
-### Phase 4: Grounded Writing
-
-- **Role:** Technical Writer
-- **Task:** Write post section by section following the outline exactly, plus expert interview insights
-- **Constraint:** Every claim points back to a collected source
-- **Hard rule:** If a section is thin on data, write "needs more research" instead of padding
-- **Banned phrases:** No em-dashes. No hollow adjectives ("groundbreaking," "revolutionary," "game-changing," "transformative"). No "delve," "dive deep," "unpack," "demystify," "journey." No generic openers. No summary closings.
-- **Verification flags:** Use [VERIFY] for claims that cannot be backed by a real source AND the researcher cannot confirm
-
-### Phase 5: Co-STORM Moderator Pass
-
-- **Role:** Independent Moderator / Auditor
-- **Task:** Blind spot sweep for unknown unknowns -- critical questions no one thought to ask
-- **Why this is the highest-leverage role:** Co-STORM evaluation found that removing the moderator hurts performance more than reducing the number of experts. Single expert + moderator > multiple experts without moderator.
-- **Red-team constraints:** Audit for two named failure modes:
-  1. **Source bias transfer:** Leaning too heavily on a single biased source
-  2. **Over-association of unrelated facts:** Creating red herrings by connecting facts that are not actually related
-- **Output:** Flagged errors fixed before final output
-- **Researcher checkpoint:** Present moderator findings to the researcher. Second human checkpoint.
-
-## Co-STORM Evaluation Data (for calibration)
-
-Tested against RAG chatbots and STORM+QA across seven metrics (human evaluation, 20 participants):
-
-| Metric | RAG Chatbot | STORM+QA | Co-STORM |
-|--------|-------------|----------|----------|
-| Report Relevance | 3.57 | 3.61 | **3.78** |
-| Report Breadth | 3.50 | 3.61 | **3.79** |
-| Report Depth | 3.26 | 3.43 | **3.77** |
-| Report Novelty | 2.44 | 2.50 | **3.05** |
-| Unique URLs | 2.94 | 2.89 | **6.04** |
-
-Key finding: Removing the moderator hurts performance more than reducing the number of experts.
-78% of participants preferred Co-STORM over RAG chatbots overall.
-
-## Model Tiering (2026-06-29 -- Fusion Update)
-
-| Pipeline Stage | Model | Rationale |
-|----------------|-------|-----------|
-| Phase 1: Perspective Discovery | Nemotron 3 Ultra 550B | Strongest orchestrator, purpose-built for agentic workflows |
-| Phase 2: Expert Interview (all tiers) | Fusion: 4 models (Nemotron 3 Ultra + gpt-oss-120b + Gemma 4 31B + MiniMax M2.5) fused by DeepSeek V4 Flash | 4-model diversity per POV, single fuser cost |
-| Phase 2.5: Human Validation | Brad (no model) | Post-synthesis, pre-curation practitioner checkpoint |
-| Phase 3: Curate and Outline | Nemotron 3 Ultra 550B | Main chain, structured output, reliability |
-| Phase 4: Grounded Writing | Nemotron 3 Ultra 550B | Main chain, voice matching for researcher's final review |
-| Phase 5: Moderator/Auditor | Nemotron 3 Ultra 550B | Highest-leverage role, needs strongest reasoner |
-| Final Polish | cos-heavy (DeepSeek V4 Flash) | Fast, precise cleanup, temperature zero, won't go rogue on prose |
-
-**Fusion panel per POV:**
-- `nvidia/nemotron-3-ultra-550b-a55b:free` -- NVIDIA, US-origin, agentic RL, Mamba-Transformer hybrid
-- `openai/gpt-oss-120b:free` -- OpenAI, RLHF-heavy, STEM/math strength, Western training
-- `google/gemma-4-31b-it:free` -- Google DeepMind, factual grounding, math, multimodal
-- `minimax/minimax-m2.5:free` -- MiniMax (Shanghai), distinct Chinese lab lineage
-- **Fuser:** `deepseek/deepseek-v4-flash` -- synthesizes all 4 into one report
-
-**Model hierarchy (strongest to weakest):** Nemotron 3 Ultra (frontier workhorse) > DeepSeek V4 Flash (fuser, polish) > Nemotron 3 Super 120B (free) > gpt-oss-120b, Gemma 4 31B, MiniMax M2.5 (fusion panel, parity)
-
-**Fallback chain (matches config.yaml fallback_chain):**
-1. Nemotron 3 Ultra 550B (primary -- strongest free model, frontier workhorse)
-2. Nemotron 3 Super 120B (free -- stable, strong tool caller)
-3. DeepSeek V4 Flash (paid -- last resort safety net)
-
-If Nemotron 3 Ultra is unavailable (rate limit, outage), the fallback chain automatically promotes the next model. Do not escalate as a reflex.
-
-**Parallel subagent batching:** max_concurrent_children=3. Dispatch interviews in batches of 3. Draft post in parallel while interviews run.
-
-## Philosophy and Design Rationale
-
-### Why Fusion Changes the Nature of STORM
-
-Standard STORM uses a single model per POV. The "perspective diversity" comes entirely from the persona prompt -- you're asking one model to roleplay different viewpoints. The model's training biases, knowledge gaps, and reasoning patterns are constant across every perspective. Genuine disagreement between POVs is largely theatrical.
-
-With Fusion, each POV is researched by four models with genuinely different architectures, training data, companies, and knowledge biases:
-
-- **Nemotron 3 Ultra 550B** (NVIDIA/US agentic, MoE architecture, Mamba-Transformer hybrid)
-- **gpt-oss-120b** (OpenAI/RLHF, STEM/math strength, Western training)
-- **Gemma 4 31B** (Google/DeepMind, general/multimodal, factual grounding)
-- **MiniMax M2.5** (MiniMax/Shanghai, distinct Chinese lab lineage, different pretraining philosophy)
-
-When the DeepSeek Flash judge surfaces disagreements between panel models, those are **real disagreements** rooted in different training, not one model arguing with itself. The moderator in Phase 5 is reconciling genuine intellectual diversity, not synthetic persona variation.
-
-### The Compounding Effect
-
-**Standard STORM pipeline:**
-persona diversity -> question diversity -> single-model answers -> moderator synthesizes thin outputs
-
-**Fusion STORM pipeline:**
-persona diversity -> question diversity -> 4-model panel answers -> judge pre-synthesizes per POV -> human validates -> moderator synthesizes already-rich outputs
-
-The moderator receives pre-fused, human-validated intelligence, not raw single-model takes. It's working with a higher quality input at every step. Each phase compounds the one before it -- the panel feeds the judge, the judge feeds the human, the human feeds the moderator, the moderator feeds the writer. Quality at the top of the funnel cascades down.
-
-### Why the Judge Matters More Than the Panel
-
-Per OpenRouter's own research, approximately 75% of Fusion's quality lift comes from the synthesis step, not model diversity. The judge's structured output -- consensus, contradictions, gaps, unique insights -- is what makes the POV report richer than any single model could produce.
-
-Panel diversity supplies the raw material. The judge does the actual intellectual work.
-
-This means the architecture is not "more models = better." It's "more models feeding a synthesizer = better." The synthesizer quality is the bottleneck. That's why DeepSeek V4 Flash (the strongest reasoner in the stack) is the fuser, not a cheaper model.
-
-### Why This Is Novel
-
-No published STORM implementation runs multi-model Fusion at the POV level. The Stanford paper and all known implementations use single models per perspective. This architecture -- 4-model free panel + cheap judge + human moderator across N perspectives -- achieves near-frontier research quality at near-zero cost.
-
-This is This implementation's original contribution to the STORM methodology. Document it as such.
-
-### The Operational Implication
-
-Cost is no longer a reason to limit POV count. The only constraint is how many genuinely distinct perspectives a topic deserves. Choose tier based on topic complexity, not budget.
-
-| Old Constraint | New Constraint |
-|----------------|----------------|
-| "How many POVs can we afford?" | "How many POVs does this topic deserve?" |
-| Budget-driven tier selection | Complexity-driven tier selection |
-| 2 models per POV (costly) | 4 models per POV (free) |
-| Trade depth for cost | Depth is the default |
-
-The Fusion panel cost is only the fuser prompt (DeepSeek V4 Flash at $0.14/$0.28 per 1M tokens). All four analysis models run free tiers. A Full run with 10 POVs costs approximately 10 fuser prompts -- still under $1.
-
-## Search Stack Detail
-
-**Hierarchy: web search is primary. RAG is context. conversation history search is pre-check. Perplexity is supplementary.**
-
-See `references/search-hierarchy.md` for the full rationale and implementation preference.
-
-### Full Search Stack (2026-06-25)
-
-| Layer | Tool | Status | Best For |
-|-------|------|--------|---------|
-| Internet facts | web_search (exa) | Active | Current events, specific claims, dates |
-| Web extraction | web_extract (firecrawl) | Active | Full page content, PDFs, articles |
-| External synthesis | Perplexity (sonar-pro) | Active | Parallel fact-checking, multi-source comparisons |
-| Knowledge base context | vector database RAG | Active | researcher's knowledge base, cross-domain connections |
-| Prior thinking | conversation history search | Active | What the researcher already said/thought on the topic |
-| Internal reasoning | x_search (Grok) | Active | Complex reasoning (not web search) |
-
-### Tool Availability Reality Check
-
-Before starting Phase 2, verify which search tools are actually available. Do not assume any specific tool is configured. Check in this order:
-
-1. Check your agent framework's configuration for search backends -- reveals configured search without touching secrets
-2. Check the skill's Prerequisites section -- keys live in config files or secret stores, never dumped to output
-3. `check your agent framework's configuration 2>/dev/null | grep -i "perplex"` -- keys may live in config.yaml but not env
-4. Default available tools: `web_search`, `web_extract`, `conversation history search`, RAG (vector database)
-
-**Perplexity Discovery Pattern (2026-06-25):** researcher requested Perplexity. Env var was empty. Config.yaml at `web.perplexity.api_key` contained a valid key. Verified live with curl to API endpoint -- returned 200. Lesson: always check config.yaml for backends that may be configured but not exposed via environment variables. API keys can be in config.yaml, .env file (redacted in display), or actual env vars. Check all three locations.
-
-**If the researcher requests a tool that is not configured:**
-- Alert the researcher immediately. Do not silently substitute.
-- Offer the best available alternative from the configured stack.
-- Ask if the researcher wants to configure the missing tool before proceeding.
-
-**Hard rule:** Never claim to have done "full storm research" if you only ran web_search + RAG. Full STORM requires the complete 5-phase pipeline with subagent interviews Plus verified sources.
-
-## When to Use: Tier Selection (POV Count)
-
-All tiers use the same Fusion panel (4 models per POV). The only variable is how many perspectives the topic deserves.
-
-**STORM-Light (4-5 POVs, 4-5 sub-agent calls):** Routine research, time-sensitive pieces, topics within well-established domain knowledge. Fast, cheap, sufficient for most content.
-
-**STORM-Mid (6-8 POVs, 6-8 sub-agent calls):** Ambitious research, cross-domain topics, or when single-model echo chamber is a risk. Good middle ground for important but not pillar content.
-
-**STORM-Full (8-10 POVs, 8-10 sub-agent calls):** Pillar research, deep academic problems, definitive guides, topics where genuine perspective diversity matters more than cost. Requires the researcher's time for Phase 2 interview and Phase 5 review. Reserve for content that justifies the depth.
-
-**Decision criteria:**
-- Routine post, established territory -> Light (4-5 POV)
-- Important post, some ambiguity -> Mid (6-8 POV)
-- Pillar content, academic depth, ambitious claims -> Full (8-10 POV)
-- researcher available for interview checkpoints? -> Mid or Full. If not -> Light.
-- Budget concern? -> All tiers are nearly free (only fuser prompts cost anything). Scale up POV count without cost anxiety.
-
-**Cost is no longer a tier differentiator.** The Fusion fuser (DeepSeek V4 Flash) costs $0.14/$0.28 per 1M tokens. A Full run with 10 POVs costs ~10 fuser prompts -- still under $1. The analysis models are all free. Choose tier based on how many perspectives the topic deserves, not cost.
-
-## Pipeline Agent Mapping
-
-| STORM Phase | this implementation Agent | Notes |
-|-------------|-----------|-------|
-| Phase 1: Perspective Discovery | Provocateur + Forensic Scientist | Formalize persona + questions format |
-| Phase 2: Expert Interview | the researcher (human) + Forensic Scientist (research) | Novel modification; model researches, the researcher stress-tests |
-| Phase 2.5: Human Validation | the researcher (human) | Post-synthesis, pre-curation checkpoint |
-| Phase 3: Curate and Outline | Military Planner | Add contradiction-flagging requirement; living outline |
-| Phase 4: Grounded Writing | Master Editor | Adopt "needs more research" instead of padding |
-| Phase 5: Moderator | Auditor | Formalize the two named failure modes as checks |
-
-## Banned Phrases and Patterns for Blog Posts
-
-These apply specifically to your content:
-
-- Em-dashes (use commas, periods, or line breaks)
-- "is the one that landed"
-- "the floor" / "on the floor" / "from the floor"
-- Supply chain / DC ops / warehouse references (unless the topic is literally logistics)
-- Hollow adjectives: "groundbreaking," "revolutionary," "game-changing," "transformative"
-- Generic openers: "In today's rapidly evolving landscape..."
-- "Delve," "dive deep," "unpack," "demystify," "journey"
-- Summary closings ("In conclusion," "The bottom line is...")
-- Promotion language ("innovative," "cutting-edge")
-- Vague attributions ("experts say," "studies show") -- name the specific source
-- Significance inflation ("stands as a testament," "pivotal role")
-
-## Implementation Notes
-
-- Reference implementation: github.com/stanford-oval/storm (4 modules)
-- LangGraph port: github.com/braincrew-lab/STORM-Research-Assistant
-- Public adaptation: github.com/bmtrnavsky/storm-fusion-research-pipeline
-- In this implementation, web_search replaces Tavily/ArXiv as the primary retrieval tool
-- **Lessons learned from live pipeline runs:** see `references/storm-lessons-learned.md`
+- **Hermes plugin:** see the README and `skills/storm-fusion-research/SKILL.md`.
+- **Any other setup (a chat window, a script, your own agent):** see
+  `docs/use-without-hermes.md`.
