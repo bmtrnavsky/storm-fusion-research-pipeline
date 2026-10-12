@@ -115,6 +115,17 @@ Any provider that speaks the OpenAI chat-completions format works, including hos
 routers and local servers. Local servers usually need no key, and the script then sends no
 auth header.
 
+**Nested fanout (a mini mixture of agents).** A lineup slot can ask several reference
+models, then have an aggregator model merge them into one seat view:
+
+```json
+{"moa": {"reference_models": [{"model": "<a>"}, {"model": "<b>"}],
+         "aggregator": {"model": "<merge-model>"}}}
+```
+
+This is the script's own stand-in for Hermes MoA. It does not call Hermes presets. One level
+only, and the aggregator should be a different model from the judge when you can.
+
 **Useful options**
 
 - `--dry-run` prints every prompt and calls nothing. Run this first to see what each seat

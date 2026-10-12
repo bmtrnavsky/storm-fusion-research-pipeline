@@ -132,6 +132,33 @@ def _judge_prompt(topic: str, reports: list[dict]) -> str:
     )
 
 
+def _hint(exc: Exception, lineup: list, judge: dict) -> str:
+    """Plain-language next step for a failed run. Never swaps models for the user."""
+    text = str(exc).lower()
+    uses_moa = any(
+        (slot or {}).get("provider") == "moa" for slot in list(lineup) + [judge or {}]
+    )
+    if "trust" in text or "override" in text or "not allowed" in text:
+        return (
+            "Model overrides need operator consent: set "
+            "plugins.entries.storm-fusion-research.llm.allow_provider_override and "
+            "allow_model_override to true in config.yaml. To limit what the plugin can "
+            "reach, also set allowed_providers and allowed_models."
+        )
+    if uses_moa:
+        return (
+            "A slot uses provider 'moa'. The preset name must match one listed by "
+            "'hermes model' under Mixture of Agents, and 'moa' must be in allowed_providers "
+            "if you set that list. If your Hermes version will not route a MoA preset "
+            "through a plugin, name the preset's reference models as separate lineup slots "
+            "instead. That loses the inner merge."
+        )
+    return (
+        "Check that every provider and model in the lineup is reachable right now. "
+        "The run stopped; nothing was swapped in for the failed model."
+    )
+
+
 def make_panel_handler(ctx: Any):
     """Build the ``storm_run_panel`` handler bound to this plugin's ctx."""
 
@@ -187,15 +214,7 @@ def make_panel_handler(ctx: Any):
         except Exception as exc:
             logger.warning("storm_run_panel failed: %s", exc)
             return json.dumps(
-                {
-                    "success": False,
-                    "error": str(exc),
-                    "hint": (
-                        "Model overrides need operator consent: set "
-                        "plugins.entries.storm-fusion-research.llm.allow_provider_override "
-                        "and allow_model_override to true in config.yaml."
-                    ),
-                }
+                {"success": False, "error": str(exc), "hint": _hint(exc, lineup, judge)}
             )
 
         panel = judged.parsed if judged.parsed is not None else {"raw": judged.text}
