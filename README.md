@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Hermes Plugin](https://img.shields.io/badge/Hermes-Plugin-teal.svg)](https://hermes-agent.nousresearch.com/docs)
-[![Version](https://img.shields.io/badge/version-0.5.0-orange.svg)](SPEC.md)
+[![Version](https://img.shields.io/badge/version-0.5.0-orange.svg)](CHANGELOG.md)
 
 A human-gated perspective-panel adaptation of Stanford's STORM methodology. One question,
 several seats, one judge, one human. No hardcoded models: the human picks the engine
