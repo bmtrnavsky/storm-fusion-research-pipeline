@@ -39,9 +39,11 @@ Modes 1 and 2 need nothing beyond the standard toolset: `web_search`, `web_extra
 example `hindsight_recall` if you run that memory provider).
 
 Mode 3 needs one fanout engine, human's choice: OpenRouter Fusion (key required) or Hermes
-MoA (a `moa` preset with reference models plus an aggregator). The human supplies the exact
+MoA (presets under the top-level `moa` key, used as `provider: moa` with the preset name as `model`). The human supplies the exact
 model lineup per run. Never invent a default lineup. A slot can itself be a Fusion or MoA
 call, which nests the fanout (seats x slots x inner models), so size the cost first.
+
+**Cap and dry-run gate.** Max 12 seats x 4 slots per run (48 seat calls before inner models). Run `python run_panel.py <panel.json> --dry-run` first (on the plugin path, count by hand: seats x slots x inner models, plus a merge per engine slot, plus the judge) and state the call count to the human before any live run.
 
 One-time operator setup for per-call model picks (consent-gated, fail-closed without it):
 
@@ -56,9 +58,8 @@ plugins:
         # allowed_models: ["*"]
 ```
 
-To use a MoA preset as a lineup slot, pass `provider: moa` and the preset name as `model`.
-Test with two seats first. If Hermes refuses, name the preset's reference models as separate
-slots instead and say plainly that the inner merge is lost.
+Hermes MoA slots are presets under the top-level `moa` key, used as `provider: moa` with the preset name as `model`.
+**Unverified on Hermes:** a `provider: moa` slot through `ctx.llm` is not yet confirmed; test with two seats first, and if refused, fall back to listing the preset's reference models as separate slots (say plainly that the inner merge is lost).
 
 Without these flags the tool runs on the active model only and says so in its error.
 
@@ -93,9 +94,9 @@ Mode 1: one model interviews each seat sequentially. Mode 2: one `delegate_task`
 per seat, parallel, each briefed with its seat card only. Mode 3: call `storm_run_panel`
 with the topic, the seat cards, and the human-chosen lineup; each seat fans out across
 the lineup and the tool returns seat reports plus the judge synthesis in one round trip.
-Resolve a named MoA preset to its reference models plus aggregator first (read the preset
-from config, pass provider/model pairs inline); lineups may differ per seat only by
-separate tool calls per seat group.
+A MoA preset goes in the lineup as `provider: moa` with the preset name as `model`; if that
+is refused, list the preset's reference models as separate slots instead. Lineups may differ
+per seat only by separate tool calls per seat group.
 
 Search stack per seat, in order: your memory or notes recall tool first if you have one (prior
 thinking, zero cost), then `web_search` and `web_extract` to ground answers, then a knowledge
@@ -130,6 +131,13 @@ The judge recommends, the human decides. Contradictions ship with weights (which
 what evidence), never averaged away. Ties and value calls route to the human with the
 trade stated plainly.
 
+Default judge: one model, the strongest reasoner available. MoA judge is opt-in only, for
+pillar calls: pass a preset as the judge (`provider: moa`, preset name as `model`). Its
+aggregator must differ from every seat model and slot aggregator, its merge prompt must keep
+contradiction weights and `unverified` tags intact (never average them), and it stays one
+inner level (the aggregator is never another preset). Cost: adds one call per reference
+model plus the merge on top of the single judge call; count it in the dry-run.
+
 ## Pitfalls
 
 - Skipping gates turns the panel into theater. No human, no modes 2 or 3.
@@ -137,7 +145,8 @@ trade stated plainly.
 - Seats debating each other. Seats report; only the judge synthesizes.
 - Reimplementing citations. Load `grounded-citations` for the ledger, `arxiv` for papers.
 - Hardcoding models. Lineups age fast; the human casts engines and models per run.
-- Mode 3 for small questions. Seats times models is the most expensive shape here.
+- Mode 3 for small questions. Seats times models is the most expensive shape here. Stay
+  under the cap (12 seats x 4 slots) and dry-run first.
 
 ## Verification
 

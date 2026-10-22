@@ -1,3 +1,6 @@
+> **PARKED.** Not on the roadmap. Kept for reference only; uses v0.3 vocabulary and is not
+> maintained. Current method: `storm-method.md` and the repo root `PANEL-SPEC.md`.
+
 # STORM Operational Improvements
 
 **Status:** Next build phase -- documented but not implemented yet.

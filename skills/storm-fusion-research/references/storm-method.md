@@ -82,10 +82,16 @@ fails closed rather than guessing. Use these principles instead of a fixed list.
   output (consensus, weighted contradictions, unresolved items).
 - Keep the judge different from the models that wrote the seat reports when you can. A
   model grading its own family's output tends to agree with it.
+- **MoA judge is opt-in, not the default.** Default is the single strongest reasoner. For
+  pillar calls only, the judge can be a MoA preset (Hermes: `provider: moa`, preset name as
+  `model`). The preset's aggregator must differ from the seat models and slot aggregators,
+  its merge prompt must preserve contradiction weights and `unverified` tags, and it stays
+  one inner level. Cost: one call per reference model plus the merge, on top of the panel.
 
 **Before every run, check:**
 1. Each model is reachable right now (keys, quotas, rate limits).
 2. You know what a full run costs: seats x models x tokens per seat, plus one judge call.
+   Cap: 12 seats x 4 slots. Run `--dry-run`, count the calls, and state them to the human.
 3. The model supports what its seat needs (long context, tools, structured output).
 4. The provider and model override flags are enabled if you are using the Hermes plugin.
 
@@ -101,7 +107,9 @@ merge inside each slot, the judge across seats, and the human at the gates.
 
 Use it when a seat is high stakes. Watch the cost: calls multiply to seats x slots x inner
 models, plus a merge per slot. Keep the lineup small when slots are engines. Keep the
-judge a different model from the engines' mergers, for the same reason as above.
+judge a different model from the engines' mergers, for the same reason as above. Same cap
+(12 seats x 4 slots) and dry-run gate apply. On Hermes, engine slots are MoA presets under the top-level `moa` key, used as `provider: moa` with the preset name as `model`; that
+slot type is unverified, so fall back to separate slots if refused.
 
 ## Sizing the panel
 
@@ -150,6 +158,7 @@ not silently substitute, and never describe a run as a full panel if you only ra
 - Reimplementing citations. Use a citation-ledger skill if you have one.
 - Hardcoding models. Re-pick the lineup each run.
 - Using mode 3 on a small question. Seats x models is the most expensive shape here.
+- Skipping the dry-run. Count calls before every mode 3 run; never exceed 12 seats x 4 slots.
 
 ## Running it
 

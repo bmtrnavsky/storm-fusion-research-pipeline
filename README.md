@@ -83,8 +83,9 @@ flowchart LR
 | 3 Full panel | 2-12, fanout per seat | OpenRouter Fusion or Hermes MoA | POV times models | Engine key |
 
 In mode 3 a lineup slot can itself be a Fusion or MoA call, so the fanout nests: each seat
-fans out across the lineup, and each slot can fan out again inside the engine. See
-`PANEL-SPEC.md` for the cost math.
+fans out across the lineup, and each slot can fan out again inside the engine. Cap: 12
+seats x 4 slots per run; dry-run and state the call count first. See `PANEL-SPEC.md` for
+the cost math.
 
 The orchestrator sizes the panel to the problem: societal issue, up to a dozen seats;
 broken deploy, two (design and engineering). The human approves or amends the cast.
@@ -103,7 +104,7 @@ hermes plugins install storm-fusion-research
 
 Or clone into your plugins directory. The skill loads namespaced as
 `storm-fusion-research:storm-fusion-research`. Modes 1 and 2 need no keys. Mode 3 needs
-one fanout engine (OpenRouter Fusion or a Hermes MoA preset) with a human-chosen lineup.
+one fanout engine (OpenRouter Fusion or Hermes MoA) with a human-chosen lineup.
 
 One-time consent for per-call model picks:
 
@@ -119,10 +120,10 @@ plugins:
         # allowed_models: ["*"]
 ```
 
-To use a Hermes MoA preset as a lineup slot, pass `{"provider": "moa", "model": "<preset>"}`.
+Hermes MoA slots: presets under the top-level `moa` key, used as `provider: moa` with the preset name as `model`, e.g. `{"provider": "moa", "model": "<preset>"}`.
 Hermes runs the inner fanout with your own keys and presets. This is not yet confirmed to work
-through plugins on every Hermes version, so run a two-seat test first. If it is refused, the
-error says what to try.
+through plugins on every Hermes version, so run a two-seat test first. If it is refused, list
+the preset's reference models as separate slots.
 
 See `skills/storm-fusion-research/SKILL.md` for the full procedure.
 
