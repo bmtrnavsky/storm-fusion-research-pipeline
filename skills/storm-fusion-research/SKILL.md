@@ -1,7 +1,7 @@
 ---
 name: storm-fusion-research
 description: Research hard questions with human-gated perspective panels.
-version: 0.4.0
+version: 0.5.0
 author: Brad Trnavsky
 license: MIT
 platforms: [linux, macos, windows]
@@ -52,7 +52,13 @@ plugins:
       llm:
         allow_provider_override: true
         allow_model_override: true
+        # allowed_providers: [openrouter, moa]   # optional allowlists
+        # allowed_models: ["*"]
 ```
+
+To use a MoA preset as a lineup slot, pass `provider: moa` and the preset name as `model`.
+Test with two seats first. If Hermes refuses, name the preset's reference models as separate
+slots instead and say plainly that the inner merge is lost.
 
 Without these flags the tool runs on the active model only and says so in its error.
 

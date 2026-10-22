@@ -1,4 +1,4 @@
-# Storm Panel -- Quick Reference (v0.4.0)
+# Storm Panel -- Quick Reference (v0.5.0)
 
 **Methodology reference, not runnable code. No model names appear here by design:
 the human picks engines and lineups every run.**

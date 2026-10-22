@@ -1,7 +1,7 @@
 # Storm Panel Spec v2: Human-in-the-Loop Perspective Panel
 
 **Status:** implemented in v0.4.0 (skill plus `storm_run_panel` tool). **Parent:** Stanford STORM (Shao et al., NAACL 2024) and Co-STORM (EMNLP 2024).
-**Repo:** `bmtrnavsky/storm-fusion-research-pipeline`. **Version:** 0.4.0.
+**Repo:** `bmtrnavsky/storm-fusion-research-pipeline`. **Version:** 0.5.0.
 
 ## Identity
 
