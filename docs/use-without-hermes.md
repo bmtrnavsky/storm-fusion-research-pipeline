@@ -123,7 +123,8 @@ models, then have an aggregator model merge them into one seat view:
          "aggregator": {"model": "<merge-model>"}}}
 ```
 
-This is the script's own stand-in for Hermes MoA. It does not call Hermes presets. One level
+This is the script's own stand-in for Hermes MoA. It does not call Hermes presets (those are
+presets under the top-level `moa` key, used as `provider: moa` with the preset name as `model`, plugin path only). One level
 only, and the aggregator should be a different model from the judge when you can.
 
 **Useful options**
@@ -156,8 +157,9 @@ If you already run an agent framework, you do not need either path above. Reuse 
 ## Costs, in plain terms
 
 A mode 3 run makes `seats x models` seat calls plus one judge call. Two seats and three
-models is seven calls. Twelve seats and four models is forty-nine. Run `--dry-run` and
-count before you commit.
+models is seven calls. Twelve seats and four models is forty-nine, which is the cap: max
+12 seats x 4 slots per run. Run `--dry-run`, count the calls it prints, and state the count
+before any live run.
 
 If a slot points at a Fusion or MoA style endpoint, that slot fans out again behind the
 scenes. Multiply by the inner model count, and add a merge call per slot.

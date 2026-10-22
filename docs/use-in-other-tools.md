@@ -83,8 +83,9 @@ breaks."
 
 Ask the agent to write the panel file from the approved cast, run `--dry-run` first, then run
 it. Nested fanout works here too: give a lineup slot `reference_models` plus an `aggregator`
-under a `moa` key and the script fans out again inside that slot. See
-`docs/use-without-hermes.md` for the file format, flags, and cost math.
+under a `moa` key and the script fans out again inside that slot (a local stand-in, not
+Hermes presets). Cap: 12 seats x 4 slots per run; state the dry-run call count before the
+live run. See `docs/use-without-hermes.md` for the file format, flags, and cost math.
 
 ## Sources
 

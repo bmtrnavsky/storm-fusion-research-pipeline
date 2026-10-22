@@ -33,8 +33,7 @@ Past ~4 seats, use mode 2 or 3.
 ## Engines (mode 3, human picks the lineup)
 
 - **OpenRouter Fusion.** Buys training-lineage diversity. Exists today.
-- **Hermes MoA** (presets under a top-level `moa` config key, each with `reference_models`
-  plus one `aggregator`; a preset shows up as a selectable model under the `moa` provider).
+- **Hermes MoA** (presets under the top-level `moa` key, used as `provider: moa` with the preset name as `model`; each preset has `reference_models` plus one `aggregator`).
   Buys home field: own keys, own bill, no round trip. Exists today.
 - Method is engine-agnostic. A future native MoE slots in without rewriting the method.
 
@@ -47,7 +46,10 @@ slot may itself be a Fusion or MoA call, which fans out again to its own models 
 them before returning one answer. Calls per run: seats x slots x inner models, plus one
 merge per slot, plus the judge. Hermes MoA allows one inner level only (a preset's
 aggregator cannot be another MoA preset). Whether `ctx.llm` accepts a MoA preset as a slot
-(`provider: moa`) is unverified; test it on your install before relying on it.
+(`provider: moa`) is unverified; test it on your install before relying on it. Fallback:
+list the preset's reference models as separate slots.
+
+**Cap and dry-run gate.** Max 12 seats x 4 slots per run (48 seat calls before inner models). Run `python run_panel.py <panel.json> --dry-run` first (on the plugin path, count by hand: seats x slots x inner models, plus a merge per engine slot, plus the judge) and state the call count to the human before any live run.
 
 ## Cast rule (dynamic sizing)
 
@@ -81,6 +83,14 @@ shortcut ("greenlight", "go") proceeds as proposed.
 - Ties and value judgments route to the human with the trade stated plainly.
 - Thin sections say `needs more research`, never padding.
 
+**MoA judge (opt-in, not the default).** The default judge is one model, the strongest
+reasoner available. For pillar calls only, the human may make the judge a MoA preset
+(`provider: moa`, preset name as `model`). Requirements: the preset's aggregator differs
+from every seat model and slot aggregator; its merge prompt preserves contradiction weights
+and `unverified` tags (no averaging); one inner level only. Cost: one call per reference
+model plus the merge, on top of the panel. Hermes plugin path only and unverified there;
+`run_panel.py` keeps the judge a single model.
+
 ## Native cross-references (defer, do not reimplement)
 
 - Citation mechanics and `unverified` ledger: `grounded-citations` skill.
@@ -91,6 +101,7 @@ shortcut ("greenlight", "go") proceeds as proposed.
 
 ## Cost guidance (mode picker)
 
+- Every mode 3 run: cap 12 seats x 4 slots, dry-run and state the call count first.
 - Pillar piece or ambitious claim where shared blind spots are the risk: mode 3.
 - Cross-domain synthesis the expert has not connected before: mode 2 minimum.
 - Time-sensitive, news-driven, established territory: mode 1.

@@ -15,8 +15,9 @@ No keys. Routine questions, established territory, or no human available.
 Diversity from POV only. No keys. Human's model pick runs throughout.
 
 **Mode 3 Full panel:** 2-12 seats, each seat its own fanout (OpenRouter Fusion or Hermes
-MoA preset, lineup chosen by the human). Diversity from POV times models. Engine key
-required. Pillar pieces, ambitious claims, shared-blind-spot risk.
+MoA: presets under the top-level `moa` key, used as `provider: moa` with the preset name as `model`; lineup chosen by the human). Diversity from POV times models. Engine key
+required. Pillar pieces, ambitious claims, shared-blind-spot risk. Cap 12 seats x 4 slots;
+dry-run and state the call count first.
 
 ## Gates (human decides, judge recommends)
 

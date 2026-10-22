@@ -10,6 +10,11 @@ All notable changes to this project. Newest first.
   spread lineages, strongest judge, judge different from the seat models, a pre-run checklist.
 - Nested fanout is documented. A mode 3 lineup slot can itself be a Fusion or MoA call. The
   cost math is seats x slots x inner models, plus a merge per slot and one judge call.
+- Cost docs carry a cap (12 seats x 4 slots per run) and a dry-run gate: count calls first.
+- MoA judge documented as opt-in for pillar calls only; the default stays one strongest
+  reasoner. MoA wording unified: presets under the top-level `moa` key, used as
+  `provider: moa` with the preset name as `model`.
+- `references/storm-operational-improvements.md` is marked PARKED.
 - `run_panel.py` is new: a standard-library script that runs mode 3 against any
   OpenAI-compatible endpoint. Flags include `--dry-run` (prints prompts and the call count),
   `--model`, and `--out`.
