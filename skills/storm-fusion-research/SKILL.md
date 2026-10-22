@@ -59,7 +59,7 @@ plugins:
 ```
 
 Hermes MoA slots are presets under the top-level `moa` key, used as `provider: moa` with the preset name as `model`.
-**Unverified on Hermes:** a `provider: moa` slot through `ctx.llm` is not yet confirmed; test with two seats first, and if refused, fall back to listing the preset's reference models as separate slots (say plainly that the inner merge is lost).
+**Unverified on Hermes:** a `provider: moa` slot through `ctx.llm` timed out in live runs (non-streaming aggregator leg hangs, upstream NousResearch/hermes-agent#133916); test with two seats first, and if it hangs, fall back to listing the preset's reference models as separate slots (say plainly that the inner merge is lost).
 
 Without these flags the tool runs on the active model only and says so in its error.
 

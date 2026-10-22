@@ -45,8 +45,10 @@ aggregator synthesizes the seat view. The panel judge synthesizes across seats.
 slot may itself be a Fusion or MoA call, which fans out again to its own models and merges
 them before returning one answer. Calls per run: seats x slots x inner models, plus one
 merge per slot, plus the judge. Hermes MoA allows one inner level only (a preset's
-aggregator cannot be another MoA preset). Whether `ctx.llm` accepts a MoA preset as a slot
-(`provider: moa`) is unverified; test it on your install before relying on it. Fallback:
+aggregator cannot be another MoA preset). A MoA preset as a slot
+(`provider: moa`) timed out in live runs through `ctx.llm` (non-streaming
+aggregator leg hangs, upstream NousResearch/hermes-agent#133916); test it on
+your install before relying on it. Fallback:
 list the preset's reference models as separate slots.
 
 **Cap and dry-run gate.** Max 12 seats x 4 slots per run (48 seat calls before inner models). Run `python run_panel.py <panel.json> --dry-run` first (on the plugin path, count by hand: seats x slots x inner models, plus a merge per engine slot, plus the judge) and state the call count to the human before any live run.
