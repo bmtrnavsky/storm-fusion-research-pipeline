@@ -82,6 +82,10 @@ flowchart LR
 | 2 Native panel | 2-12, parallel subagents | Human's model pick | POV only | None |
 | 3 Full panel | 2-12, fanout per seat | OpenRouter Fusion or Hermes MoA | POV times models | Engine key |
 
+In mode 3 a lineup slot can itself be a Fusion or MoA call, so the fanout nests: each seat
+fans out across the lineup, and each slot can fan out again inside the engine. See
+`PANEL-SPEC.md` for the cost math.
+
 The orchestrator sizes the panel to the problem: societal issue, up to a dozen seats;
 broken deploy, two (design and engineering). The human approves or amends the cast.
 
