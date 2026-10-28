@@ -25,8 +25,16 @@ their answers into one seat view. One level only, like Hermes MoA. This is a loc
 stand-in: it does not call Hermes presets (run the Hermes plugin for those).
 
 Endpoint and key come from --base-url / STORM_BASE_URL and the env var named by
---api-key-env (default STORM_API_KEY). A lineup slot can override either with its own
-"base_url" and "api_key_env", which lets one panel span several providers.
+--api-key-env (default STORM_API_KEY). The env var name must start with STORM_
+(anything else is rejected) so a panel file can never name an unrelated secret
+like OPENAI_API_KEY or AWS_SECRET_ACCESS_KEY and have its value sent to a
+third-party endpoint. A lineup slot can override either with its own
+"base_url" and "api_key_env" (same STORM_ rule), which lets one panel span
+several providers.
+
+> [!WARNING]
+> A slot's `base_url` receives that slot's key as a Bearer token. Only run
+> panel files you trust, and only point slots at endpoints you trust.
 """
 
 from __future__ import annotations
@@ -46,6 +54,18 @@ JSON_HINT = (
     "schema:\n" + json.dumps(SEAT_SCHEMA)
 )
 
+KEY_ENV_PREFIX = "STORM_"
+
+
+def resolve_key_env(name):
+    """Validate an api_key_env name and return the key value."""
+    if not isinstance(name, str) or not name.startswith(KEY_ENV_PREFIX):
+        raise ValueError(
+            f"Refusing api_key_env {name!r}: the env var name must start with "
+            f"{KEY_ENV_PREFIX!r} (e.g. STORM_API_KEY). Rename your key and retry."
+        )
+    return os.environ.get(name, "")
+
 
 def complete(messages, slot, defaults, temperature, max_tokens, timeout):
     """One chat completion. Returns (text, total_tokens_or_None)."""
@@ -60,7 +80,7 @@ def complete(messages, slot, defaults, temperature, max_tokens, timeout):
         raise ValueError("No endpoint. Pass --base-url or set STORM_BASE_URL.")
 
     key_env = slot.get("api_key_env") or defaults["api_key_env"]
-    key = os.environ.get(key_env, "")
+    key = resolve_key_env(key_env)
     body = {"model": model, "messages": messages}
     if temperature is not None:
         body["temperature"] = temperature

@@ -133,7 +133,13 @@ only, and the aggregator should be a different model from the judge when you can
   will be asked, and to catch typos in the cast before you spend money.
 - `--model <id>` uses one model for every seat and the judge (a mode 2 style run).
 - A lineup slot can carry its own `base_url` and `api_key_env`, so one panel can span
-  several providers.
+  several providers. The `api_key_env` name must start with `STORM_` (anything else
+  is refused), so a panel file can never point at an unrelated secret such as
+  `OPENAI_API_KEY` or `AWS_SECRET_ACCESS_KEY`.
+
+> [!WARNING]
+> A slot's `base_url` receives that slot's key as a Bearer token. Only run panel
+> files you trust, and only point slots at endpoints you trust.
 - `--temperature`, `--max-tokens`, `--timeout` pass through as expected.
 
 **What it does not do.** It runs the interview and the judge only. You still hold the gates:
