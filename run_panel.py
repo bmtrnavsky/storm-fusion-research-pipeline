@@ -28,23 +28,44 @@ Endpoint and key come from --base-url / STORM_BASE_URL and the env var named by
 --api-key-env (default STORM_API_KEY). The env var name must start with STORM_
 (anything else is rejected) so a panel file can never name an unrelated secret
 like OPENAI_API_KEY or AWS_SECRET_ACCESS_KEY and have its value sent to a
-third-party endpoint. A lineup slot can override either with its own
-"base_url" and "api_key_env" (same STORM_ rule), which lets one panel span
-several providers.
+third-party endpoint.
+
+A lineup slot can override either with its own "base_url" and "api_key_env"
+(same STORM_ rule), which lets one panel span several providers -- but slot
+endpoints are DISABLED by default and must be unlocked by the operator with
+--allow-slot-endpoints (optionally narrowed with repeatable --allow-endpoint
+prefixes). A non-empty key is only ever sent to an endpoint it is bound to:
+the default pair (default endpoint <-> default key env) plus explicit
+--endpoint-key PREFIX=ENV bindings. In particular a slot that points at a
+different endpoint without its own explicit api_key_env is refused, so the
+default key can never silently follow a slot's base_url somewhere unexpected.
 
 > [!WARNING]
 > A slot's `base_url` receives that slot's key as a Bearer token. Only run
 > panel files you trust, and only point slots at endpoints you trust.
+
+Transport hygiene: only https:// endpoints are accepted, except plain http://
+to loopback hosts (localhost / 127.x / ::1) with --allow-http-loopback.
+URLs with embedded credentials (userinfo) and non-http schemes (file:// and
+friends) are refused. Authorization is sent as an unredirected header and the
+client refuses redirects instead of replaying the request elsewhere, so a key
+is never forwarded to a redirect target.
+
+Runs are capped at 12 seats x 4 slots (4 reference models per MoA slot).
+--dry-run prints every prompt plus the planned model/endpoint/key-var table
+and calls nothing.
 """
 
 from __future__ import annotations
 
 import argparse
+import ipaddress
 import json
 import os
 import re
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 
 from panel import SEAT_SCHEMA, _judge_prompt, _seat_prompt
@@ -67,20 +88,218 @@ def resolve_key_env(name):
     return os.environ.get(name, "")
 
 
-def complete(messages, slot, defaults, temperature, max_tokens, timeout):
-    """One chat completion. Returns (text, total_tokens_or_None)."""
+MAX_SEATS = 12
+MAX_SLOTS = 4
+MAX_REFS = 4
+
+
+def is_loopback_host(host):
+    """True for localhost / 127.x / ::1 (anything else counts as remote)."""
+    if not host:
+        return False
+    if host.lower() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def validate_endpoint(url, *, allow_http_loopback=False):
+    """Endpoint hygiene for panel-file-supplied URLs. Returns normalized URL.
+
+    Only https:// is accepted, except plain http:// to a loopback host when
+    the operator passed --allow-http-loopback. Embedded credentials
+    (userinfo) and non-http schemes (file:// etc.) are always refused.
+    """
+    if not isinstance(url, str) or not url.strip():
+        raise ValueError("No endpoint. Pass --base-url or set STORM_BASE_URL.")
+    url = url.strip()
+    parts = urllib.parse.urlparse(url)
+    if parts.scheme not in ("https", "http"):
+        raise ValueError(
+            f"Refusing endpoint {url!r}: scheme {parts.scheme!r} is not allowed. "
+            "Only https:// endpoints are accepted"
+            + ("" if parts.scheme != "http" else " (http:// needs a loopback host plus --allow-http-loopback)")
+            + "."
+        )
+    if parts.username or parts.password or "@" in parts.netloc:
+        raise ValueError(
+            f"Refusing endpoint {url!r}: credentials embedded in the URL "
+            "(userinfo) are not allowed."
+        )
+    host = parts.hostname
+    if not host:
+        raise ValueError(f"Refusing endpoint {url!r}: no hostname.")
+    if parts.scheme == "http" and not (allow_http_loopback and is_loopback_host(host)):
+        raise ValueError(
+            f"Refusing endpoint {url!r}: plain http is only allowed for loopback "
+            "hosts (localhost / 127.x / ::1) with --allow-http-loopback; "
+            "everything else must be https://."
+        )
+    return url.rstrip("/")
+
+
+def parse_endpoint_key(spec):
+    """Parse one --endpoint-key PREFIX=ENV binding (operator config, trusted)."""
+    prefix, sep, env = spec.partition("=")
+    prefix, env = prefix.strip().rstrip("/"), env.strip()
+    if not sep or not prefix or not env:
+        raise ValueError(
+            f"Bad --endpoint-key {spec!r}: expected PREFIX=ENV, e.g. "
+            "--endpoint-key https://openrouter.ai/=STORM_OR_KEY."
+        )
+    if not env.startswith(KEY_ENV_PREFIX):
+        raise ValueError(
+            f"Refusing --endpoint-key {spec!r}: the env var name must start with "
+            f"{KEY_ENV_PREFIX!r}."
+        )
+    return prefix, env
+
+
+def build_bindings(defaults, extra):
+    """Key env name -> endpoint prefixes it may be sent to.
+
+    Starts with the default pair (default endpoint <-> default key env);
+    explicit --endpoint-key entries add more. A slot's own pairing is NOT
+    implicit: it must be declared here to receive a non-empty key.
+    """
+    table = {}
+    if defaults.get("base_url") and defaults.get("api_key_env"):
+        table.setdefault(defaults["api_key_env"], []).append(defaults["base_url"])
+    for prefix, env in extra:
+        table.setdefault(env, []).append(prefix)
+    return table
+
+
+def check_key_binding(base_url, key_env, key_value, bindings):
+    """A non-empty key is only sent to an endpoint it is bound to."""
+    if not key_value:
+        return  # no key, no Authorization header, nothing to leak
+    for prefix in bindings.get(key_env, []):
+        norm = prefix.rstrip("/")
+        if base_url == norm or base_url.startswith(norm + "/"):
+            return
+    raise ValueError(
+        f"Refusing to send key {key_env} to {base_url!r}: not bound. Declare it "
+        f"with --endpoint-key {base_url}={key_env} (or fix the slot's api_key_env)."
+    )
+
+
+def check_slot(slot, defaults, bindings, args, *, require_endpoint=True):
+    """Fail-fast gate for one slot (or judge, ref, aggregator) dict.
+
+    Enforces endpoint hygiene, the --allow-slot-endpoints flag gate plus the
+    --allow-endpoint allowlist, explicit key pairing for foreign endpoints,
+    and the key<->endpoint binding. Returns (base_url, key_env).
+    """
+    raw = (slot.get("base_url") or defaults["base_url"] or "").strip()
+    if not raw:
+        if require_endpoint:
+            raise ValueError("No endpoint. Pass --base-url or set STORM_BASE_URL.")
+        base_url = ""
+    else:
+        base_url = validate_endpoint(raw, allow_http_loopback=args.allow_http_loopback)
+    slot_base = (slot.get("base_url") or "").strip().rstrip("/")
+    default_base = (defaults["base_url"] or "").strip().rstrip("/")
+    if slot_base and slot_base != default_base:
+        if not args.allow_slot_endpoints:
+            raise ValueError(
+                f"Slot base_url {slot_base!r} differs from the default endpoint: "
+                "slot endpoints are disabled by default. Re-run with "
+                "--allow-slot-endpoints (and only point slots at endpoints you "
+                "trust; each slot's key is sent there as a Bearer token)."
+            )
+        if args.allow_endpoint and not any(
+            slot_base == p or slot_base.startswith(p.rstrip("/") + "/")
+            for p in args.allow_endpoint
+        ):
+            raise ValueError(
+                f"Slot base_url {slot_base!r} is not in the --allow-endpoint "
+                "allowlist. Add it explicitly or remove the override."
+            )
+        if not slot.get("api_key_env"):
+            raise ValueError(
+                f"Slot base_url {slot_base!r} has no explicit api_key_env: "
+                f"refusing to send the default key ({defaults['api_key_env']}) "
+                "to a different endpoint. Set an explicit \"api_key_env\" on "
+                "this slot and bind it with --endpoint-key PREFIX=ENV."
+            )
+    key_env = slot.get("api_key_env") or defaults["api_key_env"]
+    if key_env and not key_env.startswith(KEY_ENV_PREFIX):
+        raise ValueError(
+            f"Refusing api_key_env {key_env!r}: the env var name must start with "
+            f"{KEY_ENV_PREFIX!r} (e.g. STORM_API_KEY). Rename your key and retry."
+        )
+    key_value = os.environ.get(key_env, "") if key_env else ""
+    if base_url:
+        check_key_binding(base_url, key_env, key_value, bindings)
+    return base_url, key_env
+
+
+def iter_slot_dicts(lineup, judge):
+    """Every slot-like dict that can carry base_url/api_key_env/model."""
+    for slot in lineup:
+        yield slot
+        moa = slot.get("moa") or {}
+        for ref in moa.get("reference_models") or []:
+            yield ref
+        if moa.get("aggregator"):
+            yield moa["aggregator"]
+    yield judge
+
+
+def check_caps(seats, lineup):
+    """Enforce the 12 seats x 4 slots (+4 refs) cap before spending anything."""
+    if len(seats) > MAX_SEATS:
+        raise ValueError(
+            f"Too many seats: {len(seats)} > cap of {MAX_SEATS}. Split the panel."
+        )
+    if len(lineup) > MAX_SLOTS:
+        raise ValueError(
+            f"Too many lineup slots: {len(lineup)} > cap of {MAX_SLOTS}."
+        )
+    for slot in lineup:
+        moa = slot.get("moa") or {}
+        if not slot.get("moa"):
+            continue
+        refs = moa.get("reference_models") or []
+        if not refs or not moa.get("aggregator"):
+            raise ValueError(
+                "A moa slot needs reference_models and an aggregator, each with a model. "
+                "This script never picks a model for you."
+            )
+        if len(refs) > MAX_REFS:
+            raise ValueError(
+                f"Too many MoA reference models: {len(refs)} > cap of {MAX_REFS}."
+            )
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Refuse redirects instead of replaying the request (and its key) elsewhere."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise urllib.error.HTTPError(
+            newurl,
+            code,
+            f"Refusing redirect ({code}) to {newurl}: the endpoint redirected; "
+            "update --base-url / the slot base_url instead of following.",
+            headers,
+            fp,
+        )
+
+
+def complete(messages, slot, defaults, temperature, max_tokens, timeout, args, bindings):
+    """One chat completion. Returns (text, model, total_tokens_or_None)."""
     model = slot.get("model") or defaults["model"]
-    base_url = (slot.get("base_url") or defaults["base_url"] or "").rstrip("/")
+    base_url, key_env = check_slot(slot, defaults, bindings, args)
     if not model:
         raise ValueError(
             "No model given. Set a model on each lineup slot and on judge, or pass --model. "
             "This script never picks a model for you."
         )
-    if not base_url:
-        raise ValueError("No endpoint. Pass --base-url or set STORM_BASE_URL.")
 
-    key_env = slot.get("api_key_env") or defaults["api_key_env"]
-    key = resolve_key_env(key_env)
+    key = resolve_key_env(key_env) if key_env else ""
     body = {"model": model, "messages": messages}
     if temperature is not None:
         body["temperature"] = temperature
@@ -94,14 +313,21 @@ def complete(messages, slot, defaults, temperature, max_tokens, timeout):
     req = urllib.request.Request(
         f"{base_url}/chat/completions",
         data=json.dumps(body).encode(),
-        headers=headers,
+        headers={"Content-Type": "application/json"},
         method="POST",
     )
+    if key:  # local servers often need no key, so the header is optional
+        # Unredirected: sent on the first request, never forwarded elsewhere.
+        # Belt and braces with NoRedirect below, which refuses redirects outright.
+        req.add_unredirected_header("Authorization", f"Bearer {key}")
+    opener = urllib.request.build_opener(NoRedirect)
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with opener.open(req, timeout=timeout) as resp:
             data = json.load(resp)
     except urllib.error.HTTPError as exc:
-        detail = exc.read().decode(errors="replace")[:300]
+        # Our own NoRedirect refusal carries the explanation in the message
+        # (there is no response body to read); surface it, don't bury it.
+        detail = (exc.read().decode(errors="replace")[:300] if exc.fp else "") or exc.msg or ""
         raise RuntimeError(f"{model} at {base_url}: HTTP {exc.code}: {detail}") from None
     except urllib.error.URLError as exc:
         raise RuntimeError(f"{model} at {base_url}: {exc.reason}") from None
@@ -123,7 +349,7 @@ MERGE_PROMPT = (
 )
 
 
-def run_slot(messages, slot, defaults, temperature, max_tokens, timeout):
+def run_slot(messages, slot, defaults, temperature, max_tokens, timeout, args, bindings):
     """Run one lineup slot. Returns (text, label, tokens).
 
     A plain slot is one model call. A slot with a "moa" block fans out again: every
@@ -131,7 +357,7 @@ def run_slot(messages, slot, defaults, temperature, max_tokens, timeout):
     """
     moa = slot.get("moa")
     if not moa:
-        return complete(messages, slot, defaults, temperature, max_tokens, timeout)
+        return complete(messages, slot, defaults, temperature, max_tokens, timeout, args, bindings)
 
     refs = moa.get("reference_models") or []
     agg = moa.get("aggregator")
@@ -142,7 +368,7 @@ def run_slot(messages, slot, defaults, temperature, max_tokens, timeout):
         )
     answers, labels, total = [], [], 0
     for ref in refs:
-        text, model, tokens = complete(messages, ref, defaults, temperature, max_tokens, timeout)
+        text, model, tokens = complete(messages, ref, defaults, temperature, max_tokens, timeout, args, bindings)
         answers.append((model, text))
         labels.append(model)
         total += tokens or 0
@@ -150,7 +376,7 @@ def run_slot(messages, slot, defaults, temperature, max_tokens, timeout):
     advisors = "\n\n".join(f"--- advisor {m} ---\n{t}" for m, t in answers)
     merged, agg_model, tokens = complete(
         [{"role": "user", "content": f"{MERGE_PROMPT}\n\nQuestion:\n{question}\n\n{advisors}"}],
-        agg, defaults, temperature, max_tokens, timeout,
+        agg, defaults, temperature, max_tokens, timeout, args, bindings,
     )
     total += tokens or 0
     return merged, f"moa({'+'.join(labels)} -> {agg_model})", total or None
@@ -176,6 +402,36 @@ def main(argv=None):
     ap.add_argument("--timeout", type=float, default=180)
     ap.add_argument("--out", help="write the JSON result here instead of stdout")
     ap.add_argument("--dry-run", action="store_true", help="print prompts, call nothing")
+    ap.add_argument(
+        "--allow-slot-endpoints",
+        action="store_true",
+        default=os.environ.get("STORM_ALLOW_SLOT_ENDPOINTS") == "1",
+        help="allow lineup slots to override base_url (off by default; each "
+        "slot's key is sent to its endpoint as a Bearer token)",
+    )
+    ap.add_argument(
+        "--allow-endpoint",
+        action="append",
+        default=None,
+        metavar="PREFIX",
+        help="allowlist prefix for slot base_url overrides; repeatable "
+        "(also STORM_ALLOW_ENDPOINTS, comma-separated)",
+    )
+    ap.add_argument(
+        "--endpoint-key",
+        action="append",
+        default=None,
+        metavar="PREFIX=ENV",
+        help="bind a STORM_* key env to an endpoint prefix so it may be sent "
+        "there; repeatable (also STORM_ENDPOINT_KEYS, comma-separated)",
+    )
+    ap.add_argument(
+        "--allow-http-loopback",
+        action="store_true",
+        default=os.environ.get("STORM_ALLOW_HTTP_LOOPBACK") == "1",
+        help="allow plain http:// only for loopback hosts "
+        "(localhost / 127.x / ::1); everything else must be https://",
+    )
     args = ap.parse_args(argv)
 
     with open(args.input, encoding="utf-8") as fh:
@@ -193,17 +449,79 @@ def main(argv=None):
     lineup = spec.get("lineup") or [{}]
     judge = spec.get("judge") or {}
 
+    # Operator config (trusted): allowlist + key bindings, CLI or env.
+    allow_endpoints = list(args.allow_endpoint or [])
+    for chunk in os.environ.get("STORM_ALLOW_ENDPOINTS", "").split(","):
+        if chunk.strip():
+            allow_endpoints.append(chunk.strip())
+    args.allow_endpoint = [p.rstrip("/") for p in allow_endpoints]
+    if defaults["base_url"]:
+        try:
+            defaults["base_url"] = validate_endpoint(
+                defaults["base_url"], allow_http_loopback=args.allow_http_loopback
+            )
+        except ValueError as exc:
+            sys.exit(f"error: {exc}")
+    try:
+        extra_keys = [parse_endpoint_key(s) for s in (args.endpoint_key or [])]
+        for chunk in os.environ.get("STORM_ENDPOINT_KEYS", "").split(","):
+            if chunk.strip():
+                extra_keys.append(parse_endpoint_key(chunk.strip()))
+        check_caps(seats, lineup)
+        bindings = build_bindings(defaults, extra_keys)
+        for slot in iter_slot_dicts(lineup, judge):
+            check_slot(
+                slot, defaults, bindings, args,
+                require_endpoint=not args.dry_run,
+            )
+    except ValueError as exc:
+        if args.dry_run:
+            sys.exit(f"error: {exc}")
+        print(json.dumps({"success": False, "error": str(exc)}, indent=2))
+        return 1
+
     if args.dry_run:
         for seat in seats:
             print(f"=== seat: {seat['name']} ===")
             print(_seat_prompt(topic, seat)[0]["content"], end="\n\n")
         print("=== judge (reports are filled in at run time) ===")
         print(_judge_prompt(topic, []) + JSON_HINT)
-        per_seat = sum(
-            len((sl.get("moa") or {}).get("reference_models") or []) + 1 if sl.get("moa") else 1
-            for sl in lineup
-        )
-        print(f"\nCalls this run: {len(seats)} seats x lineup = {len(seats) * per_seat} "
+        print("=== planned calls (models, endpoints, key vars -- keys are never printed) ===")
+        calls = []
+        for seat in seats:
+            for slot in lineup:
+                moa = slot.get("moa") or {}
+                if not moa:
+                    calls.append((
+                        seat["name"],
+                        slot.get("model") or defaults["model"],
+                        (slot.get("base_url") or defaults["base_url"] or "").strip().rstrip("/") or "(unset)",
+                        slot.get("api_key_env") or defaults["api_key_env"],
+                    ))
+                else:
+                    for ref in moa.get("reference_models") or []:
+                        calls.append((
+                            seat["name"] + " [ref]",
+                            ref.get("model") or defaults["model"],
+                            (ref.get("base_url") or defaults["base_url"] or "").strip().rstrip("/") or "(unset)",
+                            ref.get("api_key_env") or defaults["api_key_env"],
+                        ))
+                    agg = moa.get("aggregator") or {}
+                    calls.append((
+                        seat["name"] + " [merge]",
+                        agg.get("model") or defaults["model"],
+                        (agg.get("base_url") or defaults["base_url"] or "").strip().rstrip("/") or "(unset)",
+                        agg.get("api_key_env") or defaults["api_key_env"],
+                    ))
+        calls.append((
+            "judge",
+            judge.get("model") or defaults["model"],
+            (judge.get("base_url") or defaults["base_url"] or "").strip().rstrip("/") or "(unset)",
+            judge.get("api_key_env") or defaults["api_key_env"],
+        ))
+        for name, model, endpoint, key_env in calls:
+            print(f"- {name}: model={model or '(none)'} endpoint={endpoint} key_env={key_env or '(none)'}")
+        print(f"\nCalls this run: {len(seats)} seats x lineup = {len(calls) - 1} "
               f"seat-side calls, plus 1 judge call.")
         return 0
 
@@ -214,12 +532,14 @@ def main(argv=None):
                 text, model, tokens = run_slot(
                     _seat_prompt(topic, seat), slot, defaults,
                     args.temperature, args.max_tokens, args.timeout,
+                    args, bindings,
                 )
                 reports.append({"seat": seat["name"], "model": model, "findings": text})
                 usage.append({"seat": seat["name"], "model": model, "tokens": tokens})
         text, _, _ = complete(
             [{"role": "user", "content": _judge_prompt(topic, reports) + JSON_HINT}],
             judge, defaults, args.temperature, args.max_tokens, args.timeout,
+            args, bindings,
         )
     except (ValueError, RuntimeError) as exc:
         print(json.dumps({"success": False, "error": str(exc)}, indent=2))

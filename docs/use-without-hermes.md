@@ -129,17 +129,31 @@ only, and the aggregator should be a different model from the judge when you can
 
 **Useful options**
 
-- `--dry-run` prints every prompt and calls nothing. Run this first to see what each seat
-  will be asked, and to catch typos in the cast before you spend money.
+- `--dry-run` prints every prompt, the planned model/endpoint/key-var table,
+  and the call count. Run this first to see what each seat will be asked,
+  where each key goes, and to catch typos in the cast before you spend money.
 - `--model <id>` uses one model for every seat and the judge (a mode 2 style run).
-- A lineup slot can carry its own `base_url` and `api_key_env`, so one panel can span
-  several providers. The `api_key_env` name must start with `STORM_` (anything else
-  is refused), so a panel file can never point at an unrelated secret such as
-  `OPENAI_API_KEY` or `AWS_SECRET_ACCESS_KEY`.
+- A lineup slot can carry its own `base_url` and `api_key_env`, so one panel
+  can span several providers -- but slot endpoints are **disabled by default**.
+  Unlock them with `--allow-slot-endpoints`, optionally narrowed with
+  repeatable `--allow-endpoint PREFIX` (also `STORM_ALLOW_ENDPOINTS`,
+  comma-separated). The `api_key_env` name must start with `STORM_` (anything
+  else is refused), so a panel file can never point at an unrelated secret
+  such as `OPENAI_API_KEY` or `AWS_SECRET_ACCESS_KEY`.
+- A key is only sent to an endpoint it is bound to: the default pair (default
+  endpoint <-> default key) plus explicit `--endpoint-key PREFIX=ENV` bindings
+  (also `STORM_ENDPOINT_KEYS`, comma-separated). A slot that points at a
+  different endpoint without its own explicit `api_key_env` is refused, so the
+  default key never silently follows a slot's `base_url` somewhere unexpected.
+- Transport hygiene is enforced: only `https://` endpoints, except plain
+  `http://` to loopback hosts (`localhost` / `127.x` / `::1`) with
+  `--allow-http-loopback`. URLs with embedded credentials and non-http schemes
+  (`file://` etc.) are refused, auth headers are never forwarded across
+  redirects, and redirects themselves are refused instead of followed.
 
 > [!WARNING]
-> A slot's `base_url` receives that slot's key as a Bearer token. Only run panel
-> files you trust, and only point slots at endpoints you trust.
+> A slot's `base_url` receives that slot's key as a Bearer token. Only run
+> panel files you trust, and only point slots at endpoints you trust.
 - `--temperature`, `--max-tokens`, `--timeout` pass through as expected.
 
 **What it does not do.** It runs the interview and the judge only. You still hold the gates:

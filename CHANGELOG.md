@@ -2,6 +2,26 @@
 
 All notable changes to this project. Newest first.
 
+## Unreleased (fix-key-allowlist)
+
+**Endpoint/key hardening in `run_panel.py` (Opus audit findings).**
+
+- Slot `base_url` overrides are disabled by default; unlock with
+  `--allow-slot-endpoints`, optionally narrowed with repeatable
+  `--allow-endpoint PREFIX` (or `STORM_ALLOW_ENDPOINTS`).
+- Keys are bound to endpoints: a non-empty key is only sent to its bound
+  endpoint (default pair plus explicit `--endpoint-key PREFIX=ENV` /
+  `STORM_ENDPOINT_KEYS`). A slot pointing at a foreign endpoint without its
+  own explicit `api_key_env` is refused, so the default key can never follow
+  a slot's `base_url` elsewhere.
+- Transport hygiene: `https://` only (plain `http://` to loopback hosts only
+  with `--allow-http-loopback`); embedded credentials (userinfo) and
+  non-http schemes (`file://` etc.) refused; `Authorization` sent as an
+  unredirected header and redirects refused outright instead of followed.
+- `--dry-run` now prints the planned model/endpoint/key-var table and
+  validates endpoints/keys/caps before printing; caps (12 seats x 4 slots,
+  4 MoA refs) are enforced on every path, live runs included.
+
 ## 0.5.0 (2026-10-12)
 
 **Model-agnostic and usable outside Hermes.**
