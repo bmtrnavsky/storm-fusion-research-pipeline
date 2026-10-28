@@ -121,9 +121,11 @@ plugins:
 ```
 
 Hermes MoA slots: presets under the top-level `moa` key, used as `provider: moa` with the preset name as `model`, e.g. `{"provider": "moa", "model": "<preset>"}`.
-Hermes runs the inner fanout with your own keys and presets. This is not yet confirmed to work
-through plugins on every Hermes version, so run a two-seat test first. If it is refused, list
-the preset's reference models as separate slots.
+Hermes runs the inner fanout with your own keys and presets. This path is unverified: in
+live runs a `provider: moa` slot through the plugin timed out (the non-streaming aggregator
+call hangs; upstream NousResearch/hermes-agent#133916). Run a two-seat test first. If it
+hangs or is refused, list the preset's reference models as separate slots. This loses the
+inner merge.
 
 See `skills/storm-fusion-research/SKILL.md` for the full procedure.
 
@@ -136,7 +138,9 @@ Claude Code, Codex, OpenCode, OpenWork, and Pi can all load the skill. See
 
 The method works anywhere. Paste the prompts into any chat assistant, or run
 `run_panel.py` against any OpenAI-compatible endpoint for real multi-model fanout
-(standard library only, `--dry-run` to preview). You pick every model. See
+(standard library only, `--dry-run` to preview). You pick every model. Per-slot endpoints
+are off by default (`--allow-slot-endpoints` unlocks them), keys go only to the endpoints
+they are bound to, and only `https://` endpoints are accepted. See
 `docs/use-without-hermes.md`.
 
 ## Example run
@@ -159,9 +163,9 @@ Result: associate flagged flow and layout, supervisor ran the capacity math, jud
 recommended the station only with handoff fixes after validating peak demand. Seats
 report, judge weighs, human decides.
 
-## Results
+## Upstream results (Co-STORM paper, not this repo)
 
-Automatic evaluation on WildSeek with simulated users (Table 3, Jiang et al., Co-STORM, EMNLP 2024). Scores are rubric means on a 1-5 scale; dagger marks denote significant gains over both baselines:
+These numbers come from the paper. This adaptation has not been benchmarked. Automatic evaluation on WildSeek with simulated users (Table 3, Jiang et al., Co-STORM, EMNLP 2024). Scores are rubric means on a 1-5 scale; dagger marks denote significant gains over both baselines:
 
 | Metric | RAG Chatbot | STORM+QA | Co-STORM |
 |--------|-------------|----------|----------|
@@ -175,7 +179,7 @@ Key finding: Removing the moderator hurts performance more than reducing the num
 
 ## Implementation Notes
 
-- Reference implementation: [stanford-oval/storm](https://github.com/stanford-oval/storm) (31.5k stars)
+- Reference implementation: [stanford-oval/storm](https://github.com/stanford-oval/storm) (~32k stars)
 - Mixture of Agents: [Hermes MoA docs](https://hermes-agent.nousresearch.com/docs/user-guide/features/mixture-of-agents)
 - This repo: [bmtrnavsky/storm-fusion-research-pipeline](https://github.com/bmtrnavsky/storm-fusion-research-pipeline)
 
