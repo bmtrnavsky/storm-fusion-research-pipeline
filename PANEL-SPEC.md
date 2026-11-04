@@ -1,12 +1,11 @@
 # Storm Panel Spec v2: Human-in-the-Loop Perspective Panel
 
-**Status:** experimental, unvalidated, not grounded. Implemented in v0.4.0 (skill plus
-`storm_run_panel` tool). No retrieval index and no citation verifier yet, so reports may
-contain fabricated citations; a gated review of five sample runs found 0/5 with clean
-citations. **Parent:** Stanford STORM (Shao et al., NAACL 2024) and Co-STORM (EMNLP 2024);
-this repo does not implement their retrieval/grounding stages and reproduces none of
-their results.
-**Repo:** `bmtrnavsky/storm-fusion-research-pipeline`. **Version:** 0.5.0.
+**Status:** implemented in v0.4.0 (skill plus `storm_run_panel` tool); grounded runs since
+v0.6.0. Retrieval and a citation verifier are part of the loop: each seat retrieves its own
+sources, must cite them as `[S#]`, and the run fails closed when a marker, a URL or a quote
+does not resolve to a retrieved source. **Parent:** Stanford STORM (Shao et al., NAACL 2024)
+and Co-STORM (EMNLP 2024); the results in their papers are theirs, not this repo's.
+**Repo:** `bmtrnavsky/storm-fusion-research-pipeline`. **Version:** 0.6.0.
 
 ## Identity
 

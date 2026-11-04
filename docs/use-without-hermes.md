@@ -1,13 +1,13 @@
 # Use the panel without Hermes
 
-**Experimental and unvalidated.** These prompts ask for sources but nothing verifies
-them: no retrieval index, no citation checker. Fabricated citations are expected, so
-treat every source as `unverified` until a human opens it. The method is a thinking
-aid, not a research-provenance system.
-
 The prompts do not depend on Hermes. Hermes just gives you a tool that runs the fanout for
 you. Everything else (the seats, the judge, the four human gates) works anywhere. Pick the
 path that matches how you work.
+
+`run_panel.py` carries the same grounding as the Hermes tool. With `--retrieval on` each
+seat searches the configured backend, must cite `[S#]`, and `citations.py` rejects the
+report if a marker, URL or quote does not resolve to a retrieved source. In the copy-paste
+path you are the verifier: the prompt asks for sources, and you open them.
 
 | Path | You need | Best for |
 |------|----------|----------|

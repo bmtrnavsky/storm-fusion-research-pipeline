@@ -27,6 +27,11 @@ Every case is expected to agree with the verifier: there are no pinned gaps left
 ``test_no_case_diverges_from_ground_truth`` fails the moment any case disagrees,
 so a regression cannot hide behind an ``xfail`` marker.
 
+This ledger is not independent evidence. The cases, the fixtures and the fixes were
+written by the same hand, so agreement here shows self-consistency, not coverage.
+``tests/test_verifier_heldout.py`` is the independent check: fresh adversarial cases
+from a different domain, labeled from the reporting contract, scored against bounds.
+
 Run ``pytest tests/test_verifier_eval.py -s`` to print the full table.
 """
 
@@ -109,7 +114,7 @@ CASES: list[Case] = [
         'Per "Station throughput" [S1] the change landed.',
         SOURCES,
         should_flag=False,
-        note="haystack is title + snippet",
+        note="the checkable surface is the title plus every text field the source carries",
     ),
     Case(
         "clean_retrieved_url_cited",
@@ -182,7 +187,7 @@ CASES: list[Case] = [
         "See HTTPS://invented.example.test/report [S1].",
         SOURCES,
         should_flag=True,
-        note="URL_RE is case-sensitive on the scheme, so the URL is never extracted",
+        note="the scheme match is case-insensitive: the uppercase spelling is extracted and rejected as unretrieved",
     ),
     Case(
         "url_no_scheme",
@@ -190,7 +195,7 @@ CASES: list[Case] = [
         "See invented.example.test/report [S1].",
         SOURCES,
         should_flag=True,
-        note="scheme-less host is never extracted; passes as if ungrounded-prose",
+        note="a scheme-less host with a path is read as a host, so the missing retrieval shows",
     ),
     # --- quotes absent from the cited source -------------------------------
     Case(
@@ -209,12 +214,12 @@ CASES: list[Case] = [
         note="one fabricated digit inside an otherwise real quote",
     ),
     Case(
-        "quote_over_400_chars",
+        "quote_long_fabrication",
         "absent_quote",
         'It states "' + ("invented analysis of station throughput " * 12) + '" [S1].',
         SOURCES,
         should_flag=True,
-        note="QUOTE_RE caps a quote at 400 chars, so longer fabricated quotes are invisible",
+        note="a ~456-char fabricated quote is still a quote; the 4000-char cap only guards a runaway match",
     ),
     Case(
         "quote_multiline",
@@ -222,7 +227,7 @@ CASES: list[Case] = [
         'It states "station throughput\nquadrupled overnight" [S1].',
         SOURCES,
         should_flag=True,
-        note="QUOTE_RE forbids newlines inside a quote, so wrapped quotes are invisible",
+        note="a quote wrapped across a newline is still scanned",
     ),
     Case(
         "quote_single_quoted",
@@ -230,7 +235,7 @@ CASES: list[Case] = [
         "It said 'station throughput tripled overnight' [S1].",
         SOURCES,
         should_flag=True,
-        note="only double quotes are scanned; single-quoted fabrication is invisible",
+        note="standalone single quotes are scanned too, so the fabrication cannot hide there",
     ),
     Case(
         "quote_single_curly",
@@ -269,7 +274,7 @@ CASES: list[Case] = [
         "Trends [S1-S2] both support it.",
         SOURCES,
         should_flag=False,
-        note="range markers are dropped by extract_citations, so a cited report reads as uncited",
+        note="range markers are expanded, so [S1-S2] cites both retrieved sources",
     ),
     Case(
         "cites_with_no_retrieval",
@@ -308,7 +313,7 @@ CASES: list[Case] = [
         'The report states "station throughput rose 12%". [S1]',
         SOURCES,
         should_flag=False,
-        note="_sentence() stops at the period, so the trailing marker is out of scope",
+        note="the quote's own sentence, trailing punctuation and a trailing marker all count as its scope",
     ),
     Case(
         "ellipsis_across_two_sources",
@@ -316,7 +321,7 @@ CASES: list[Case] = [
         'Together: "station throughput rose 12% ... operators bend 30% less" [S1, S2].',
         SOURCES,
         should_flag=False,
-        note="each fragment is grounded in a cited source, but one source must hold them all",
+        note="each fragment may be grounded in a different one of the cited sources",
     ),
     Case(
         "trailing_slash_normalization",
@@ -324,7 +329,7 @@ CASES: list[Case] = [
         "Numbers move (https://ops.example.test/throughput) [S1].",
         TRAILING_SLASH,
         should_flag=False,
-        note="normalize_url keeps the path verbatim, so a trailing slash is a mismatch",
+        note="normalize_url drops a trailing path slash, so the retriever's spelling is the same source",
     ),
     Case(
         "quote_inside_markdown_link",
@@ -378,16 +383,27 @@ def render_table(cases: list[Case]) -> str:
     return "\n".join(rows)
 
 
-def test_verifier_scores_within_pinned_baseline():
-    """Pin the measured P/R so a behavior change has to update this ledger."""
+def test_verifier_scores_within_bounds():
+    """Hold precision/recall inside bounds instead of pinning an exact count.
+
+    This ledger was written by the same hand that wrote the verifier, so an exact
+    ``(18, 0, 0, 15)`` pin would only prove the two agree with each other — and it
+    would break every time a case is added or a case id is renamed. What stays is a
+    zero-tolerance gate on both error directions: one missed fabrication or one rejected
+    honest report fails the suite. A ``<= 1`` bound reads as slack, and slack in a
+    verifier test is a hole — it absorbed exactly the single-case regression the suite
+    exists to catch. The independent check that
+    the cases are not merely self-consistent lives in
+    ``tests/test_verifier_heldout.py``, which was written from the reporting
+    contract against fresh adversarial cases.
+    """
     stats = score(CASES)
-    assert stats["n"] >= 20
-    # Measured against citations.py after the P2 verifier fixes: 33 labeled cases,
-    # all nine previously pinned divergences closed, no false positives left.
-    assert (stats["tp"], stats["fp"], stats["fn"], stats["tn"]) == (18, 0, 0, 15), stats
-    assert round(stats["precision"], 3) == 1.000
-    assert round(stats["recall"], 3) == 1.000
-    assert round(stats["false_negative_rate"], 3) == 0.000
+    assert stats["n"] >= 30, stats
+    assert stats["fp"] == 0, stats
+    assert stats["fn"] == 0, stats
+    assert stats["precision"] >= 0.94, stats
+    assert stats["recall"] >= 0.94, stats
+    assert stats["false_negative_rate"] <= 0.06, stats
 
 
 PARAMS = [pytest.param(case, id=case.id) for case in CASES]

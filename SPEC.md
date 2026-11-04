@@ -1,41 +1,43 @@
-# Storm Panel -- Quick Reference (v0.5.0)
-
-**Methodology reference, not runnable code. No model names appear here by design:
-the human picks engines and lineups every run.**
+# Storm Panel -- Quick Reference (v0.6.0)
 
 Human-gated perspective panel. One question, several seats, one judge, one human.
 Stanford STORM asks how to write the article; this asks how to make the call.
 
-**Status: experimental, unvalidated, not grounded.** No retrieval index, no citation
-verifier: citations may be fabricated. No STORM results are reproduced here.
+No model names appear here by design: you pick engines and lineups every run.
 
 ## Modes
 
 **Mode 1 Solo:** 2-4 seats, one model role-plays sequentially. Diversity from POV only.
-No keys. Routine questions, established territory, or no human available.
+No keys. Routine questions and established territory.
 
 **Mode 2 Native panel:** 2-12 seats, one `delegate_task` subagent per seat in parallel.
-Diversity from POV only. No keys. Human's model pick runs throughout.
+Diversity from POV only. No keys. Your model pick runs throughout.
 
 **Mode 3 Full panel:** 2-12 seats, each seat its own fanout (OpenRouter Fusion or Hermes
-MoA: presets under the top-level `moa` key, used as `provider: moa` with the preset name as `model`; lineup chosen by the human). Diversity from POV times models. Engine key
-required. Pillar pieces, ambitious claims, shared-blind-spot risk. Cap 12 seats x 4 slots;
-dry-run and state the call count first.
+MoA: presets under the top-level `moa` key, used as `provider: moa` with the preset name as
+`model`; lineup chosen by you). Diversity from POV times models. Engine key required.
+Pillar pieces, ambitious claims, shared-blind-spot risk. Cap 12 seats x 4 slots; `--dry-run`
+prints the plan and the call count first.
 
-## Gates (human decides, judge recommends)
+## Gates (you decide, judge recommends)
 
-1. Cast: orchestrator proposes seats and count from complexity, human approves or amends.
+1. Cast: orchestrator proposes seats and count from complexity, you approve or amend.
 2. Validation: fused seat reports checked pre-curation, only validated findings proceed.
-3. Verdict: judge recommends with weighted contradictions, human makes the call.
+3. Verdict: judge recommends with weighted contradictions, you make the call.
 4. Audit: moderator sweeps bias transfer, red herrings, missing seats, open contradictions.
+
+## Grounding
+
+With retrieval on, each seat gets the top-k sources for its questions and must cite them as
+`[S#]`. The verifier enforces it before a report is accepted: every marker resolves to a
+retrieved source, every URL is in the retrieved set, every quote is grounded in retrieved
+text. A report that fails raises `CitationError` with the full problem list.
 
 ## Pipeline
 
-Cast -> interview (per mode) -> human validation -> outline -> draft writing ->
-moderator audit -> polish. Unsourced claims are supposed to be marked `unverified`,
-but nothing enforces it; treat all citations as unverified. Thin sections say
-`needs more research`. Full procedure: `skills/storm-fusion-research/SKILL.md`.
-Design spec: `PANEL-SPEC.md`.
+Cast -> retrieve -> interview (per mode) -> validation -> outline -> draft writing ->
+moderator audit -> polish. Thin sections say `needs more research`. Full procedure:
+`skills/storm-fusion-research/SKILL.md`. Design spec: `PANEL-SPEC.md`.
 
 ## Native cross-references
 

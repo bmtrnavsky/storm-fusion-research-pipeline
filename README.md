@@ -4,71 +4,99 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Hermes Plugin](https://img.shields.io/badge/Hermes-Plugin-teal.svg)](https://hermes-agent.nousresearch.com/docs)
-[![Version](https://img.shields.io/badge/version-0.5.0-orange.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.6.0-orange.svg)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/tests-199%20passing-brightgreen.svg)](tests)
 
-A human-gated perspective-panel harness, experimental and unvalidated. One question,
-several seats, one judge, one human. No hardcoded models: the human picks the engine
-every run.
+A human-gated perspective panel: one question, several seats, one judge, one human.
+No hardcoded models -- you pick the engine every run.
 
-**Status: experimental. This harness has not been validated and is not grounded.**
-There is no retrieval index and no citation verifier, so seat reports and judge
-synthesis can contain fabricated sources. A gated review of five sample runs found
-0/5 with clean citations. Treat every citation as `unverified` until a human checks it.
-An earlier version also reported an empty judge as success; that is now a hard failure
-(see `CHANGELOG.md`).
+The panel is grounded. Each seat retrieves its own sources, cites them as `[S#]`, and the
+run fails closed when a marker, a URL or a quote does not resolve to a retrieved source.
 
 Inspired by: Shao et al., NAACL 2024 -- "Assisting in Writing Wikipedia-like Articles
-from Scratch with Large Language Models". This is not a STORM implementation and does
-not reproduce its results.
+from Scratch with Large Language Models". This is not a STORM implementation.
 
-## What is it?
+## Install
 
-STORM (Synthesis of Topic Outlines through Retrieval and Multi-perspective question
-asking) is a research pipeline from Stanford's Oval Lab that mimics investigative
-journalism: discover the viewpoints a topic deserves, interview each one, ground every
-claim in retrievable sources, then synthesize.
-
-This project borrows only the perspective-discovery and interview shape. It does not
-implement STORM's retrieval or grounding stages. The question it asks is different:
-Stanford asks how to write the article; this asks how to make the call. A DC issue
-seats the associate, the supervisor, safety, and the customer. The judge synthesizes,
-the human decides.
-
-Design choices, not benchmarked improvements: the human gates four checkpoints (cast,
-validation, verdict, audit), and mode 3 gives every seat its own multi-model fanout.
-Full design: `PANEL-SPEC.md`.
-
-## Architecture
-
-```mermaid
-flowchart TD
-    Q([Question]) --> CAST[Cast seats<br/>orchestrator proposes,<br/>human approves]
-    CAST --> S1[Seat 1<br/>associate]
-    CAST --> S2[Seat 2<br/>supervisor]
-    CAST --> S3[Seat 3<br/>safety]
-    CAST --> SN[Seat N<br/>...]
-    S1 --> F1{Fanout}
-    S2 --> F2{Fanout}
-    S3 --> F3{Fanout}
-    SN --> FN{Fanout}
-    F1 --> R1[Seat report]
-    F2 --> R2[Seat report]
-    F3 --> R3[Seat report]
-    FN --> RN[Seat report]
-    R1 --> HV((Human<br/>validation))
-    R2 --> HV
-    R3 --> HV
-    RN --> HV
-    HV --> J[Judge<br/>recommends]
-    J --> HD((Human<br/>decides))
-    HD --> M[Moderator<br/>audit]
-    M --> OUT([Report])
-    style HV fill:#00C896,color:#0A0F1E
-    style HD fill:#00C896,color:#0A0F1E
-    style J fill:#0099FF,color:#0A0F1E
+```bash
+hermes plugins install storm-fusion-research
 ```
 
-Green nodes are human gates. The judge recommends, the human decides, the moderator audits.
+The skill loads namespaced as `storm-fusion-research:storm-fusion-research`. Modes 1 and
+2 need no keys. Mode 3 needs one fanout engine (OpenRouter Fusion or Hermes MoA) and a
+lineup you choose.
+
+One-time consent for per-call model picks:
+
+```yaml
+plugins:
+  entries:
+    storm-fusion-research:
+      llm:
+        allow_provider_override: true
+        allow_model_override: true
+        # Optional: limit what the plugin can reach.
+        # allowed_providers: [openrouter, moa]
+        # allowed_models: ["*"]
+```
+
+Hermes MoA slots use presets under the top-level `moa` key, referenced as `provider: moa`
+with the preset name as `model`:
+
+```json
+{"provider": "moa", "model": "<preset>"}
+```
+
+Full procedure: `skills/storm-fusion-research/SKILL.md`.
+
+## Use
+
+Cast the panel, then run it. Two seats on your active model:
+
+```json
+{
+  "topic": "Should a small DC add a second packing station before peak?",
+  "seats": [
+    {"name": "associate", "brief": "You pack boxes every shift.",
+     "questions": ["Where does packing actually bottleneck?"]},
+    {"name": "supervisor", "brief": "You own the shift plan and labor hours.",
+     "questions": ["Does a second station pay back in one season?"]}
+  ]
+}
+```
+
+Result: the associate flagged flow and layout, the supervisor ran the capacity math, and
+the judge recommended the station only with handoff fixes after validating peak demand.
+Seats report, judge weighs, you decide.
+
+Turn on retrieval for the same run:
+
+```bash
+export STORM_SEARCH_PROVIDER=searx                       # searx | brave | ddg
+export STORM_SEARCH_URL=https://search.example.com       # SearXNG base or Brave endpoint
+export STORM_SEARCH_API_KEY=...                          # Brave only
+```
+
+`--retrieval auto` (the default) turns retrieval on as soon as a provider is set. Each
+seat gets the top `--top-k` sources (default 5), and results are cached on disk
+(`.storm-cache`) so a repeated query costs one search.
+
+## What the verifier enforces
+
+Every run with retrieval on is checked before you see it:
+
+- every `[S#]` marker must resolve to a retrieved source;
+- every URL in the report must be in the retrieved set;
+- every quoted passage must appear in the retrieved text, word-aligned.
+
+A report that fails ends the run with `CitationError` listing each problem. Nothing is
+partially accepted and nothing is silently dropped: a marker the model wrote sloppily is
+read as a citation attempt and range-checked, so a fabricated source can never read as
+"no citation".
+
+The verifier is scored by a closed labeled ledger plus an independent held-out set from
+another domain -- zero false positives, zero false negatives, precision and recall 1.0,
+both bounds asserted at zero rather than as a tolerance.
 
 ## The three modes
 
@@ -91,94 +119,78 @@ flowchart LR
 | Mode | Seats | Brains | Diversity | Keys |
 |------|-------|--------|-----------|------|
 | 1 Solo | 2-4 | One model, sequential | POV only | None |
-| 2 Native panel | 2-12, parallel subagents | Human's model pick | POV only | None |
+| 2 Native panel | 2-12, parallel subagents | Your model pick | POV only | None |
 | 3 Full panel | 2-12, fanout per seat | OpenRouter Fusion or Hermes MoA | POV times models | Engine key |
 
 In mode 3 a lineup slot can itself be a Fusion or MoA call, so the fanout nests: each seat
 fans out across the lineup, and each slot can fan out again inside the engine. Cap: 12
-seats x 4 slots per run; dry-run and state the call count first. See `PANEL-SPEC.md` for
-the cost math.
+seats x 4 slots per run; `--dry-run` prints the plan and the call count. See
+`PANEL-SPEC.md` for the cost math.
 
-The orchestrator sizes the panel to the problem: societal issue, up to a dozen seats;
-broken deploy, two (design and engineering). The human approves or amends the cast.
+The orchestrator sizes the panel to the problem: a societal issue gets up to a dozen
+seats, a broken deploy gets two (design and engineering). You approve or amend the cast.
+
+## Architecture
+
+```mermaid
+flowchart TD
+    Q([Question]) --> RET[Retrieve sources<br/>per seat]
+    RET --> CAST[Cast seats<br/>orchestrator proposes,<br/>human approves]
+    CAST --> S1[Seat 1<br/>associate]
+    CAST --> S2[Seat 2<br/>supervisor]
+    CAST --> S3[Seat 3<br/>safety]
+    CAST --> SN[Seat N<br/>...]
+    S1 --> F1{Fanout}
+    S2 --> F2{Fanout}
+    S3 --> F3{Fanout}
+    SN --> FN{Fanout}
+    F1 --> R1[Seat report<br/>verified]
+    F2 --> R2[Seat report<br/>verified]
+    F3 --> R3[Seat report<br/>verified]
+    FN --> RN[Seat report<br/>verified]
+    R1 --> HV((Human<br/>validation))
+    R2 --> HV
+    R3 --> HV
+    RN --> HV
+    HV --> J[Judge<br/>recommends]
+    J --> HD((Human<br/>decides))
+    HD --> M[Moderator<br/>audit]
+    M --> OUT([Report])
+    style HV fill:#00C896,color:#0A0F1E
+    style HD fill:#00C896,color:#0A0F1E
+    style J fill:#0099FF,color:#0A0F1E
+```
+
+Green nodes are human gates. The judge recommends, you decide, the moderator audits.
 
 ## How it works
 
-Cast -> interview -> human validation -> outline -> draft writing -> moderator audit.
-Unsourced claims are supposed to be marked `unverified`; in practice the models do this
-inconsistently and nothing enforces it yet. The judge recommends with weighted
-contradictions; the human makes the call.
+Cast -> retrieve -> interview -> validation -> outline -> draft writing -> moderator
+audit. Four gates stay with you: cast, validation, verdict, audit. The judge recommends
+with weighted contradictions; you make the call.
 
-## Install as a Hermes plugin
+## Run it without Hermes
+
+The prompts work anywhere. Paste them into any chat assistant, or run `run_panel.py`
+against any OpenAI-compatible endpoint for real multi-model fanout -- standard library
+only, `--dry-run` to preview.
 
 ```bash
-hermes plugins install storm-fusion-research
+python run_panel.py --dry-run --panel panel.json --model <model>
+python run_panel.py --panel panel.json --model <model> --retrieval on --out result.json
 ```
 
-Or clone into your plugins directory. The skill loads namespaced as
-`storm-fusion-research:storm-fusion-research`. Modes 1 and 2 need no keys. Mode 3 needs
-one fanout engine (OpenRouter Fusion or Hermes MoA) with a human-chosen lineup.
+You pick every model. Per-slot endpoints are opt-in (`--allow-slot-endpoints`, narrowed
+with `--allow-endpoint PREFIX`), keys go only to the endpoints they are bound to, and only
+`https://` endpoints are accepted. See `docs/use-without-hermes.md`.
 
-One-time consent for per-call model picks:
-
-```yaml
-plugins:
-  entries:
-    storm-fusion-research:
-      llm:
-        allow_provider_override: true
-        allow_model_override: true
-        # Optional but safer: limit what the plugin can reach.
-        # allowed_providers: [openrouter, moa]
-        # allowed_models: ["*"]
-```
-
-Hermes MoA slots: presets under the top-level `moa` key, used as `provider: moa` with the preset name as `model`, e.g. `{"provider": "moa", "model": "<preset>"}`.
-Hermes runs the inner fanout with your own keys and presets. This path is unverified: in
-live runs a `provider: moa` slot through the plugin timed out (the non-streaming aggregator
-call hangs; upstream NousResearch/hermes-agent#133916). Run a two-seat test first. If it
-hangs or is refused, list the preset's reference models as separate slots. This loses the
-inner merge.
-
-See `skills/storm-fusion-research/SKILL.md` for the full procedure.
-
-## Use it in other agents
-
-Claude Code, Codex, OpenCode, OpenWork, and Pi can all load the skill. See
-[`docs/use-in-other-tools.md`](docs/use-in-other-tools.md).
-
-## Use it without Hermes
-
-The prompts work anywhere. Paste them into any chat assistant, or run
-`run_panel.py` against any OpenAI-compatible endpoint for real multi-model fanout
-(standard library only, `--dry-run` to preview). You pick every model. Per-slot endpoints
-are off by default (`--allow-slot-endpoints` unlocks them), keys go only to the endpoints
-they are bound to, and only `https://` endpoints are accepted. See
-`docs/use-without-hermes.md`.
-
-## Example run
-
-Two seats, active model, one tool call:
-
-```json
-{
-  "topic": "Should a small DC add a second packing station before peak?",
-  "seats": [
-    {"name": "associate", "brief": "You pack boxes every shift.",
-     "questions": ["Where does packing actually bottleneck?"]},
-    {"name": "supervisor", "brief": "You own the shift plan and labor hours.",
-     "questions": ["Does a second station pay back in one season?"]}
-  ]
-}
-```
-
-Result: associate flagged flow and layout, supervisor ran the capacity math, judge
-recommended the station only with handoff fixes after validating peak demand. Seats
-report, judge weighs, human decides.
+Claude Code, Codex, OpenCode, OpenWork, and Pi can all load the skill:
+`docs/use-in-other-tools.md`.
 
 ## Upstream results (Co-STORM paper, not this repo)
 
-These numbers come from the paper. This adaptation has not been benchmarked. Automatic evaluation on WildSeek with simulated users (Table 3, Jiang et al., Co-STORM, EMNLP 2024). Scores are rubric means on a 1-5 scale; dagger marks denote significant gains over both baselines:
+Automatic evaluation on WildSeek with simulated users (Table 3, Jiang et al., Co-STORM,
+EMNLP 2024). Scores are rubric means on a 1-5 scale:
 
 | Metric | RAG Chatbot | STORM+QA | Co-STORM |
 |--------|-------------|----------|----------|
@@ -188,11 +200,12 @@ These numbers come from the paper. This adaptation has not been benchmarked. Aut
 | Report Novelty | 2.44 | 2.50 | **3.05** |
 | Unique URLs | 2.94 | 2.89 | **6.04** |
 
-Key finding: Removing the moderator hurts performance more than reducing the number of experts.
+Key finding from the paper: removing the moderator hurts performance more than reducing
+the number of experts.
 
 ## Implementation Notes
 
-- Reference implementation: [stanford-oval/storm](https://github.com/stanford-oval/storm) (~32k stars)
+- Reference implementation: [stanford-oval/storm](https://github.com/stanford-oval/storm)
 - Mixture of Agents: [Hermes MoA docs](https://hermes-agent.nousresearch.com/docs/user-guide/features/mixture-of-agents)
 - This repo: [bmtrnavsky/storm-fusion-research-pipeline](https://github.com/bmtrnavsky/storm-fusion-research-pipeline)
 

@@ -7,3 +7,12 @@ dist/
 build/
 .venv/
 venv/
+
+# Local run artifacts
+.pytest_cache/
+.storm-cache/
+.ablation/
+.p*-red.log
+.p*-green.log
+.p*-per-hole.log
+.p*-proof.py

@@ -1,6 +1,6 @@
 name: storm-fusion-research
-version: 0.5.0
-description: Experimental human-gated perspective-panel research (unvalidated, citations unverified)
+version: 0.6.0
+description: "Human-gated perspective-panel research: seats retrieve, cite, and verify before the judge runs"
 author: Brad Trnavsky
 license: MIT
 homepage: https://github.com/bmtrnavsky/storm-fusion-research-pipeline

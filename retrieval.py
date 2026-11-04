@@ -40,16 +40,21 @@ class Source:
     title: str
     url: str
     snippet: str = ""
+    # Optional longer text when a retriever returns page content rather than a
+    # snippet. The citation verifier grounds quotes against it when present.
+    content: str = ""
 
     def to_dict(self) -> dict:
         return asdict(self)
 
     @classmethod
     def from_dict(cls, data: dict) -> "Source":
+        content = str(data.get("content") or "")
         return cls(
             title=str(data.get("title", "")),
             url=str(data.get("url", "")),
-            snippet=str(data.get("snippet") or data.get("content") or ""),
+            snippet=str(data.get("snippet") or content),
+            content=content,
         )
 
 
