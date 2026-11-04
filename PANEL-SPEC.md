@@ -1,6 +1,11 @@
 # Storm Panel Spec v2: Human-in-the-Loop Perspective Panel
 
-**Status:** implemented in v0.4.0 (skill plus `storm_run_panel` tool). **Parent:** Stanford STORM (Shao et al., NAACL 2024) and Co-STORM (EMNLP 2024).
+**Status:** experimental, unvalidated, not grounded. Implemented in v0.4.0 (skill plus
+`storm_run_panel` tool). No retrieval index and no citation verifier yet, so reports may
+contain fabricated citations; a gated review of five sample runs found 0/5 with clean
+citations. **Parent:** Stanford STORM (Shao et al., NAACL 2024) and Co-STORM (EMNLP 2024);
+this repo does not implement their retrieval/grounding stages and reproduces none of
+their results.
 **Repo:** `bmtrnavsky/storm-fusion-research-pipeline`. **Version:** 0.5.0.
 
 ## Identity
@@ -72,7 +77,7 @@ shortcut ("greenlight", "go") proceeds as proposed.
    "the panel concluded X, does this track, what is missing, what is wrong." Only validated
    findings proceed. (No published STORM variant gates here.)
 4. **Curate and outline.** Living outline; contradictions flagged explicitly, not smoothed.
-5. **Grounded writing, then moderator audit.** Moderator runs at the end as auditor
+5. **Draft writing, then moderator audit.** Moderator runs at the end as auditor
    (Stanford's moderator prompts mid-discourse; different job): source-bias transfer check,
    red-herring check, missing-seat check, unresolved-contradiction check. Findings go to
    the human. Then final polish.
@@ -82,6 +87,7 @@ shortcut ("greenlight", "go") proceeds as proposed.
 - The judge **recommends, the human decides.** The judge never closes a contested call.
 - Contradictions are reported with weights (which seats, what evidence), never averaged away.
 - Anything neither sourced nor human-confirmed stays `unverified` in the final document.
+  This is a prompt instruction, not a check: nothing in the code verifies a citation yet.
 - Ties and value judgments route to the human with the trade stated plainly.
 - Thin sections say `needs more research`, never padding.
 
