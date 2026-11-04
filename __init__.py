@@ -2,7 +2,10 @@
 
 from pathlib import Path
 
-from .panel import PANEL_TOOL_SCHEMA, make_panel_handler
+if __package__:
+    from .panel import PANEL_TOOL_SCHEMA, make_panel_handler
+else:  # imported as a top-level module (pytest, ad-hoc scripts)
+    from panel import PANEL_TOOL_SCHEMA, make_panel_handler
 
 
 def register(ctx):

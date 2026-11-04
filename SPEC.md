@@ -6,6 +6,9 @@ the human picks engines and lineups every run.**
 Human-gated perspective panel. One question, several seats, one judge, one human.
 Stanford STORM asks how to write the article; this asks how to make the call.
 
+**Status: experimental, unvalidated, not grounded.** No retrieval index, no citation
+verifier: citations may be fabricated. No STORM results are reproduced here.
+
 ## Modes
 
 **Mode 1 Solo:** 2-4 seats, one model role-plays sequentially. Diversity from POV only.
@@ -28,8 +31,9 @@ dry-run and state the call count first.
 
 ## Pipeline
 
-Cast -> interview (per mode) -> human validation -> outline -> grounded writing ->
-moderator audit -> polish. Unsourced claims marked `unverified`. Thin sections say
+Cast -> interview (per mode) -> human validation -> outline -> draft writing ->
+moderator audit -> polish. Unsourced claims are supposed to be marked `unverified`,
+but nothing enforces it; treat all citations as unverified. Thin sections say
 `needs more research`. Full procedure: `skills/storm-fusion-research/SKILL.md`.
 Design spec: `PANEL-SPEC.md`.
 

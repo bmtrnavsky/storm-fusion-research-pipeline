@@ -1,6 +1,11 @@
 # Use the panel without Hermes
 
-The method does not depend on Hermes. Hermes just gives you a tool that runs the fanout for
+**Experimental and unvalidated.** These prompts ask for sources but nothing verifies
+them: no retrieval index, no citation checker. Fabricated citations are expected, so
+treat every source as `unverified` until a human opens it. The method is a thinking
+aid, not a research-provenance system.
+
+The prompts do not depend on Hermes. Hermes just gives you a tool that runs the fanout for
 you. Everything else (the seats, the judge, the four human gates) works anywhere. Pick the
 path that matches how you work.
 

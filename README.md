@@ -6,25 +6,37 @@
 [![Hermes Plugin](https://img.shields.io/badge/Hermes-Plugin-teal.svg)](https://hermes-agent.nousresearch.com/docs)
 [![Version](https://img.shields.io/badge/version-0.5.0-orange.svg)](CHANGELOG.md)
 
-A human-gated perspective-panel adaptation of Stanford's STORM methodology. One question,
+A human-gated perspective-panel harness, experimental and unvalidated. One question,
 several seats, one judge, one human. No hardcoded models: the human picks the engine
 every run.
 
-Based on: Shao et al., NAACL 2024 -- "Assisting in Writing Wikipedia-like Articles from Scratch with Large Language Models"
+**Status: experimental. This harness has not been validated and is not grounded.**
+There is no retrieval index and no citation verifier, so seat reports and judge
+synthesis can contain fabricated sources. A gated review of five sample runs found
+0/5 with clean citations. Treat every citation as `unverified` until a human checks it.
+An earlier version also reported an empty judge as success; that is now a hard failure
+(see `CHANGELOG.md`).
+
+Inspired by: Shao et al., NAACL 2024 -- "Assisting in Writing Wikipedia-like Articles
+from Scratch with Large Language Models". This is not a STORM implementation and does
+not reproduce its results.
 
 ## What is it?
 
-STORM (Synthesis of Topic Outlines through Retrieval and Multi-perspective question asking)
-is a research pipeline from Stanford's Oval Lab that mimics investigative journalism:
-discover the viewpoints a topic deserves, interview each one, ground every claim in
-retrievable sources, then synthesize.
+STORM (Synthesis of Topic Outlines through Retrieval and Multi-perspective question
+asking) is a research pipeline from Stanford's Oval Lab that mimics investigative
+journalism: discover the viewpoints a topic deserves, interview each one, ground every
+claim in retrievable sources, then synthesize.
 
-This adaptation changes the question. Stanford asks how to write the article. This asks
-how to make the call. A DC issue seats the associate, the supervisor, safety, and the
-customer. Same question, four truths. The judge synthesizes, the human decides.
+This project borrows only the perspective-discovery and interview shape. It does not
+implement STORM's retrieval or grounding stages. The question it asks is different:
+Stanford asks how to write the article; this asks how to make the call. A DC issue
+seats the associate, the supervisor, safety, and the customer. The judge synthesizes,
+the human decides.
 
-Two improvements on Stanford: the human gates four checkpoints (cast, validation, verdict,
-audit), and mode 3 gives every seat its own multi-model fanout. Full design: `PANEL-SPEC.md`.
+Design choices, not benchmarked improvements: the human gates four checkpoints (cast,
+validation, verdict, audit), and mode 3 gives every seat its own multi-model fanout.
+Full design: `PANEL-SPEC.md`.
 
 ## Architecture
 
@@ -92,9 +104,10 @@ broken deploy, two (design and engineering). The human approves or amends the ca
 
 ## How it works
 
-Cast -> interview -> human validation -> outline -> grounded writing -> moderator audit.
-Unsourced claims are marked `unverified`. Thin sections say `needs more research`.
-The judge recommends with weighted contradictions; the human makes the call.
+Cast -> interview -> human validation -> outline -> draft writing -> moderator audit.
+Unsourced claims are supposed to be marked `unverified`; in practice the models do this
+inconsistently and nothing enforces it yet. The judge recommends with weighted
+contradictions; the human makes the call.
 
 ## Install as a Hermes plugin
 
@@ -136,7 +149,7 @@ Claude Code, Codex, OpenCode, OpenWork, and Pi can all load the skill. See
 
 ## Use it without Hermes
 
-The method works anywhere. Paste the prompts into any chat assistant, or run
+The prompts work anywhere. Paste them into any chat assistant, or run
 `run_panel.py` against any OpenAI-compatible endpoint for real multi-model fanout
 (standard library only, `--dry-run` to preview). You pick every model. Per-slot endpoints
 are off by default (`--allow-slot-endpoints` unlocks them), keys go only to the endpoints

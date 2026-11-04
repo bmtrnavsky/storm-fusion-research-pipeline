@@ -68,7 +68,19 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from panel import SEAT_SCHEMA, _judge_prompt, _seat_prompt
+from citations import CitationError, require_clean, verify_citations
+from panel import (
+    JUDGE_DEFAULT_MAX_TOKENS,
+    MIN_JUDGE_MAX_TOKENS,
+    SEAT_SCHEMA,
+    PanelError,
+    _judge_prompt,
+    _seat_prompt,
+    parse_panel_json,
+    resolve_budgets,
+    validate_judge_panel,
+)
+from retrieval import RetrievalError, make_retriever
 
 JSON_HINT = (
     "\n\nReturn ONLY one JSON object, with no prose and no code fences, matching this "
@@ -290,7 +302,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 def complete(messages, slot, defaults, temperature, max_tokens, timeout, args, bindings):
-    """One chat completion. Returns (text, model, total_tokens_or_None)."""
+    """One chat completion. Returns (text, model, total_tokens_or_None, finish_reason)."""
     model = slot.get("model") or defaults["model"]
     base_url, key_env = check_slot(slot, defaults, bindings, args)
     if not model:
@@ -333,11 +345,19 @@ def complete(messages, slot, defaults, temperature, max_tokens, timeout, args, b
         raise RuntimeError(f"{model} at {base_url}: {exc.reason}") from None
 
     try:
-        text = data["choices"][0]["message"]["content"] or ""
+        choice = data["choices"][0]
+        text = choice["message"]["content"] or ""
     except (KeyError, IndexError, TypeError):
         raise RuntimeError(f"{model}: unexpected response shape") from None
+    finish_reason = choice.get("finish_reason") if isinstance(choice, dict) else None
     tokens = (data.get("usage") or {}).get("total_tokens")
-    return text, model, tokens
+    if finish_reason == "length":
+        raise PanelError(
+            f"{model}: output was cut off by max_tokens={max_tokens} "
+            "(finish_reason=length); nothing was accepted. Raise the budget and rerun.",
+            code="truncated",
+        )
+    return text, model, tokens, finish_reason
 
 
 MERGE_PROMPT = (
@@ -368,13 +388,13 @@ def run_slot(messages, slot, defaults, temperature, max_tokens, timeout, args, b
         )
     answers, labels, total = [], [], 0
     for ref in refs:
-        text, model, tokens = complete(messages, ref, defaults, temperature, max_tokens, timeout, args, bindings)
+        text, model, tokens, _ = complete(messages, ref, defaults, temperature, max_tokens, timeout, args, bindings)
         answers.append((model, text))
         labels.append(model)
         total += tokens or 0
     question = messages[0]["content"]
     advisors = "\n\n".join(f"--- advisor {m} ---\n{t}" for m, t in answers)
-    merged, agg_model, tokens = complete(
+    merged, agg_model, tokens, _ = complete(
         [{"role": "user", "content": f"{MERGE_PROMPT}\n\nQuestion:\n{question}\n\n{advisors}"}],
         agg, defaults, temperature, max_tokens, timeout, args, bindings,
     )
@@ -383,12 +403,12 @@ def run_slot(messages, slot, defaults, temperature, max_tokens, timeout, args, b
 
 
 def parse_json(text):
-    """Parse the judge's JSON, tolerating a code fence. Falls back to raw text."""
-    cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
-    try:
-        return json.loads(cleaned)
-    except json.JSONDecodeError:
-        return {"raw": text}
+    """Parse the judge's JSON object, tolerating a code fence.
+
+    Returns None when the text is not a JSON object. There is no raw-text
+    fallback: an unparsed judge is a failed run, not a panel.
+    """
+    return parse_panel_json(text)
 
 
 def main(argv=None):
@@ -398,8 +418,30 @@ def main(argv=None):
     ap.add_argument("--api-key-env", default="STORM_API_KEY")
     ap.add_argument("--model", help="one model for every seat and the judge")
     ap.add_argument("--temperature", type=float)
-    ap.add_argument("--max-tokens", type=int)
+    ap.add_argument("--max-tokens", type=int, help="generation budget per seat call")
+    ap.add_argument(
+        "--judge-max-tokens",
+        type=int,
+        default=JUDGE_DEFAULT_MAX_TOKENS,
+        help=f"judge output budget, independent of --max-tokens "
+        f"(default {JUDGE_DEFAULT_MAX_TOKENS}; minimum {MIN_JUDGE_MAX_TOKENS})",
+    )
     ap.add_argument("--timeout", type=float, default=180)
+    ap.add_argument(
+        "--retrieval",
+        choices=["auto", "on", "off"],
+        default="auto",
+        help="web retrieval for mandatory [S#] citations. auto = on when "
+        "STORM_SEARCH_PROVIDER is set, else off. On requires a working backend.",
+    )
+    ap.add_argument("--search-provider", default=None, help="searx|brave (env STORM_SEARCH_PROVIDER)")
+    ap.add_argument("--search-url", default=None, help="search endpoint (env STORM_SEARCH_URL)")
+    ap.add_argument("--top-k", type=int, default=5, help="sources retrieved per seat")
+    ap.add_argument(
+        "--cache-dir",
+        default=None,
+        help="retrieval cache dir (default .storm-cache; 'none' disables)",
+    )
     ap.add_argument("--out", help="write the JSON result here instead of stdout")
     ap.add_argument("--dry-run", action="store_true", help="print prompts, call nothing")
     ap.add_argument(
@@ -448,6 +490,14 @@ def main(argv=None):
     }
     lineup = spec.get("lineup") or [{}]
     judge = spec.get("judge") or {}
+
+    try:
+        gen_max_tokens, judge_max_tokens = resolve_budgets(
+            args.max_tokens, args.judge_max_tokens
+        )
+    except PanelError as exc:
+        print(json.dumps({"success": False, "error": str(exc), "code": exc.code}, indent=2))
+        return 1
 
     # Operator config (trusted): allowlist + key bindings, CLI or env.
     allow_endpoints = list(args.allow_endpoint or [])
@@ -523,33 +573,115 @@ def main(argv=None):
             print(f"- {name}: model={model or '(none)'} endpoint={endpoint} key_env={key_env or '(none)'}")
         print(f"\nCalls this run: {len(seats)} seats x lineup = {len(calls) - 1} "
               f"seat-side calls, plus 1 judge call.")
+        print(f"Retrieval: {args.retrieval} (run without --dry-run to search; "
+              "ON requires every seat report to cite [S#] from real results)")
         return 0
+
+    retrieval_mode = args.retrieval
+    if retrieval_mode == "auto":
+        configured = (os.environ.get("STORM_SEARCH_PROVIDER") or "none").lower()
+        retrieval_mode = "off" if configured in {"", "none", "off"} else "on"
+    retriever = None
+    all_sources = []
+    if retrieval_mode == "on":
+        try:
+            retriever = make_retriever(
+                provider=args.search_provider,
+                url=args.search_url,
+                cache_dir=args.cache_dir,
+            )
+        except RetrievalError as exc:
+            print(json.dumps({"success": False, "error": str(exc), "code": exc.code}, indent=2))
+            return 1
+        if retriever is None:
+            print(json.dumps({
+                "success": False,
+                "code": "retrieval_not_configured",
+                "error": "retrieval is on but STORM_SEARCH_PROVIDER/URL are not set",
+            }, indent=2))
+            return 1
+        for seat in seats:
+            try:
+                found = retriever.search(
+                    f"{topic} — {seat['name']}: {seat.get('brief', '')}", top_k=args.top_k
+                )
+            except RetrievalError as exc:
+                print(json.dumps({"success": False, "error": str(exc), "code": exc.code}, indent=2))
+                return 1
+            except Exception as exc:
+                print(json.dumps({"success": False, "error": str(exc), "code": "retrieval_failed"}, indent=2))
+                return 1
+            if not found:
+                print(json.dumps({
+                    "success": False,
+                    "code": "retrieval_failed",
+                    "error": f"retrieval returned no sources for seat {seat['name']!r}",
+                }, indent=2))
+                return 1
+            for source in found:
+                if all(source.url != s.url for s in all_sources):
+                    all_sources.append(source)
 
     reports, usage = [], []
     try:
         for seat in seats:
             for slot in lineup:
-                text, model, tokens = run_slot(
-                    _seat_prompt(topic, seat), slot, defaults,
-                    args.temperature, args.max_tokens, args.timeout,
+                text, model, tokens, _ = run_slot(
+                    _seat_prompt(topic, seat, all_sources), slot, defaults,
+                    args.temperature, gen_max_tokens, args.timeout,
                     args, bindings,
                 )
-                reports.append({"seat": seat["name"], "model": model, "findings": text})
+                if retriever is not None:
+                    require_clean(text, all_sources, seat=seat["name"])
+                reports.append({
+                    "seat": seat["name"],
+                    "model": model,
+                    "findings": text,
+                    "sources": [s.to_dict() for s in all_sources],
+                })
                 usage.append({"seat": seat["name"], "model": model, "tokens": tokens})
-        text, _, _ = complete(
-            [{"role": "user", "content": _judge_prompt(topic, reports) + JSON_HINT}],
-            judge, defaults, args.temperature, args.max_tokens, args.timeout,
+        text, _, _, _ = complete(
+            [{
+                "role": "user",
+                "content": _judge_prompt(topic, reports, all_sources or None) + JSON_HINT,
+            }],
+            judge, defaults, args.temperature, judge_max_tokens, args.timeout,
             args, bindings,
         )
+        panel = validate_judge_panel(parse_panel_json(text), text)
+        if retriever is not None:
+            problems = verify_citations(
+                panel.get("synthesis", ""), all_sources, require_citation=False
+            )
+            if problems:
+                raise CitationError("judge synthesis: " + "; ".join(problems))
     except (ValueError, RuntimeError) as exc:
-        print(json.dumps({"success": False, "error": str(exc)}, indent=2))
+        code = getattr(exc, "code", None) or "run_failed"
+        print(
+            json.dumps(
+                {
+                    "success": False,
+                    "error": str(exc),
+                    "code": code,
+                    "seat_reports": reports,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
         return 1
 
     result = {
         "success": True,
-        "panel": parse_json(text),
+        "panel": panel,
         "seat_reports": reports,  # raw reports, so you can validate before trusting the verdict
         "usage": usage,
+        "budgets": {"generation": gen_max_tokens, "judge": judge_max_tokens},
+        "retrieval": {
+            "mode": retrieval_mode,
+            "top_k": args.top_k if retriever is not None else None,
+            "sources": [s.to_dict() for s in all_sources],
+        },
     }
     output = json.dumps(result, indent=2, ensure_ascii=False)
     if args.out:
