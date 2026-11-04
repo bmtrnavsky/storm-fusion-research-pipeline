@@ -35,6 +35,15 @@ class RetrievalError(RuntimeError):
     code = "retrieval_failed"
 
 
+class _RetryableSearch(Exception):
+    """One adapter attempt failed; ``retryable`` says whether trying again is sane."""
+
+    def __init__(self, message: str, retryable: bool = True):
+        super().__init__(message)
+        self.message = message
+        self.retryable = retryable
+
+
 @dataclass(frozen=True)
 class Source:
     title: str
@@ -60,6 +69,102 @@ class Source:
 
 class Retriever(Protocol):
     def search(self, query: str, top_k: int = 5) -> list[Source]: ...
+
+
+# Keyless HTML search backends stop answering around 130 characters: the query is
+# truncated or dropped and the page comes back empty, which reads downstream as "this
+# seat has no sources". The budget is the search string's hard limit, not a style
+# preference.
+MAX_QUERY_CHARS = 120
+
+# Words a search engine ignores anyway; they only spend characters. Question and
+# second-person scaffolding is what a seat brief is mostly made of.
+_QUERY_STOPWORDS = frozenset(
+    """
+    a an the and or but if then than that this these those there here to of in on at
+    for with from by as is are was were be been being it its it's your yours you we our
+    us their they them he she his her i me my mine what which who whom whose how why
+    when where do does did done should would could can will just about into over under
+    more most much very really also only same other such own any all both each few
+    speak talk walk think say said says like make makes made get gets got go goes going
+    """.split()
+)
+
+_WORD_RE = re.compile(r"[^\W_]+(?:['\u2019\-\u2013\u2014][^\W_]+)*", re.UNICODE)
+
+
+def _query_words(text: str) -> list[str]:
+    """Words worth searching, in order, without punctuation or markup."""
+    return _WORD_RE.findall(text or "")
+
+
+def compose_query(
+    topic: str,
+    seat_name: str = "",
+    brief: str = "",
+    max_chars: int = MAX_QUERY_CHARS,
+) -> str:
+    """Build one seat's search query: topic first, then the seat's distinctive words.
+
+    The old template -- ``"{topic} — {seat}: {brief}"`` -- produced 200+ character
+    queries that a keyless backend answered with nothing, so a seat was never actually
+    searched and the run failed as if the web had no sources. A query is a search
+    string: plain words, hard character budget, topic kept ahead of the seat angle so a
+    truncated query still searches the question being asked.
+    """
+    budget = max(20, int(max_chars))
+    all_topic_words = _query_words(topic)
+
+    seen = {w.lower() for w in all_topic_words}
+    extra: list[str] = []
+    for word in _query_words(f"{brief} {seat_name}"):
+        key = word.lower()
+        if len(key) < 3 or key in _QUERY_STOPWORDS or key in seen:
+            continue
+        seen.add(key)
+        extra.append(word)
+        if len(extra) >= 8:
+            break
+
+    # Leave room for the seat angle when there is one; the topic alone is a fine query
+    # when the brief carries nothing new.
+    topic_budget = budget if not extra else int(budget * 0.65)
+
+    topic_words: list[str] = []
+    # A question is usually clauses joined by commas; cutting at a clause ends the query
+    # on a whole thought ("...before peak") instead of mid-clause ("...what should we
+    # fix"). Only fall back to word-cutting when the first clause alone is too long.
+    for clause in re.split(r"[,;:\u2014\u2013?]", topic or ""):
+        words = _query_words(clause)
+        if not words:
+            continue
+        candidate = " ".join(topic_words + words)
+        if len(candidate) <= topic_budget:
+            topic_words += words
+            continue
+        if not topic_words:
+            for word in words:
+                if len(" ".join(topic_words + [word])) > topic_budget:
+                    break
+                topic_words.append(word)
+        break
+
+    parts = list(topic_words)
+    length = len(" ".join(parts))
+    if not parts and all_topic_words:
+        parts.append(all_topic_words[0][:topic_budget])
+        length = len(parts[0])
+
+    for word in extra:
+        addition = len(word) + (1 if parts else 0)
+        if length + addition > budget:
+            break
+        parts.append(word)
+        length += addition
+    if not parts:
+        parts.append((seat_name or "topic")[:budget])
+
+    return " ".join(parts)
 
 
 def normalize_url(url: str) -> str:
@@ -169,13 +274,33 @@ class DuckDuckGoRetriever:
     """Keyless HTML search (duckduckgo.com/html). Real results, no API key.
 
     Last-resort adapter: the HTML endpoint is rate-limited and can change shape,
-    so it is not the default. It fails closed like every other adapter.
+    so it is not the default. It fails closed like every other adapter -- but a 429
+    means "come back later", not "this query has no answer", so a retryable failure is
+    retried with exponential backoff before the run is allowed to die.
     """
 
-    def __init__(self, opener=None, timeout: float = 20.0, endpoint: str = "https://html.duckduckgo.com/html/"):
+    # Definitive failures (400, 404) mean the request is wrong; retrying burns time and
+    # hides the bug. Everything else listed here is the backend asking for a retry, or
+    # the shape a bot wall takes (403) on a keyless endpoint.
+    RETRYABLE_STATUS = frozenset({403, 408, 425, 429, 500, 502, 503, 504})
+
+    def __init__(
+        self,
+        opener=None,
+        timeout: float = 20.0,
+        endpoint: str = "https://html.duckduckgo.com/html/",
+        max_attempts: int = 3,
+        backoff: float = 0.5,
+        max_backoff: float = 5.0,
+        sleep=time.sleep,
+    ):
         self.endpoint = endpoint
         self.timeout = timeout
         self._opener = opener
+        self.max_attempts = max(1, int(max_attempts))
+        self.backoff = max(0.0, float(backoff))
+        self.max_backoff = max(self.backoff, float(max_backoff))
+        self._sleep = sleep
 
     def search(self, query: str, top_k: int = 5) -> list[Source]:
         body = urllib.parse.urlencode({"q": query}).encode()
@@ -185,15 +310,41 @@ class DuckDuckGoRetriever:
             headers={"Content-Type": "application/x-www-form-urlencoded", "User-Agent": "storm-panel/0.5"},
             method="POST",
         )
+        delay = self.backoff
+        last = "search failed"
+        for attempt in range(1, self.max_attempts + 1):
+            try:
+                html = self._fetch(req)
+                results = self._parse(html, top_k)
+                if results:
+                    return results
+                # A rate-limited or challenge page parses to nothing; an honest
+                # no-result page reads the same, so retry and let the budget decide.
+                last = f"search returned no usable results for: {query}"
+                retryable = True
+            except _RetryableSearch as exc:
+                last = exc.message
+                retryable = exc.retryable
+            if not retryable or attempt == self.max_attempts:
+                break
+            self._sleep(delay)
+            delay = min(delay * 2, self.max_backoff)
+        raise RetrievalError(last)
+
+    def _fetch(self, req) -> str:
         opener = self._opener or urllib.request.build_opener()
         try:
             with opener.open(req, timeout=self.timeout) as resp:
-                html = resp.read().decode("utf-8", errors="replace")
+                return resp.read().decode("utf-8", errors="replace")
         except urllib.error.HTTPError as exc:
-            raise RetrievalError(f"search HTTP {exc.code} from duckduckgo") from None
+            raise _RetryableSearch(
+                f"search HTTP {exc.code} from duckduckgo",
+                retryable=exc.code in self.RETRYABLE_STATUS,
+            ) from None
         except urllib.error.URLError as exc:
-            raise RetrievalError(f"search unreachable: {exc.reason}") from None
+            raise _RetryableSearch(f"search unreachable: {exc.reason}") from None
 
+    def _parse(self, html: str, top_k: int) -> list[Source]:
         results = []
         pattern = re.compile(
             r'<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>(.*?)</a>', re.S
@@ -212,8 +363,6 @@ class DuckDuckGoRetriever:
             )
             if len(results) >= top_k:
                 break
-        if not results:
-            raise RetrievalError(f"search returned no usable results for: {query}")
         return results
 
     @staticmethod

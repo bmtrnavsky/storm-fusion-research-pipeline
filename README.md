@@ -81,13 +81,22 @@ export STORM_SEARCH_API_KEY=...                          # Brave only
 seat gets the top `--top-k` sources (default 5), and results are cached on disk
 (`.storm-cache`) so a repeated query costs one search.
 
+Each seat's query is a search string, not the panel prose: the topic first, then the words
+that make that seat distinct, inside a hard character budget (`retrieval.compose_query`).
+The keyless DuckDuckGo adapter retries a rate-limited or empty page with exponential
+backoff before it fails the run.
+
 ## What the verifier enforces
 
 Every run with retrieval on is checked before you see it:
 
 - every `[S#]` marker must resolve to a retrieved source;
 - every URL in the report must be in the retrieved set;
-- every quoted passage must appear in the retrieved text, word-aligned.
+- every quoted passage must appear in the retrieved text, word-aligned, with dash
+  spellings folded (`Bradley--Terry`, `Bradley-Terry` and `Bradley–Terry` are one word);
+- a quote prefixed with `[example]` is the seat's own illustration, not a claim about a
+  source, and is not grounded-checked. The marker has to touch the quote, and it never
+  excuses a fabricated `[S#]` or an unknown URL.
 
 A report that fails ends the run with `CitationError` listing each problem. Nothing is
 partially accepted and nothing is silently dropped: a marker the model wrote sloppily is

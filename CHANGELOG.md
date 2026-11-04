@@ -2,6 +2,25 @@
 
 All notable changes to this project. Newest first.
 
+## Unreleased
+
+Four defects found by the first live voice run, each fixed test-first.
+
+- **Query composition.** Each seat's search query was the template
+  `"{topic} — {seat}: {brief}"`, which ran to 240-340 characters. `compose_query` builds
+  the query instead: topic first (cut at a clause, not mid-clause), then the brief's
+  distinctive non-stopwords, inside a hard 120-character budget.
+- **DuckDuckGo retry.** A 429, a 5xx, a bot wall or a parse-empty page is retried with
+  exponential backoff (3 attempts, 0.5s doubling, capped); 400/404 are not retried. The
+  adapter still fails closed with `RetrievalError`.
+- **Hyphen-run false positive.** The quote check folds dash spellings before comparing, so
+  LaTeX `Bradley--Terry` grounds against `Bradley-Terry` or `Bradley–Terry`. The fold needs
+  a word character on both sides, so separate words are never glued together.
+- **Self-example marker.** A quote prefixed with `[example]` is the seat's own
+  illustration and is not grounded-checked; an unmarked quote is checked exactly as
+  before, and the marker never excuses a fabricated `[S#]` or an unknown URL. Seat and
+  judge prompts teach the marker.
+
 ## 0.6.0 (2026-11-04)
 
 **Grounded runs: retrieval in the loop, and a citation verifier that enforces it.**

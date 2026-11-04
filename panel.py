@@ -11,8 +11,8 @@ import json
 import logging
 from typing import Any
 
-from citations import CitationError, format_sources, require_clean, verify_citations
-from retrieval import RetrievalError, make_retriever
+from citations import SELF_EXAMPLE_MARKER, CitationError, format_sources, require_clean, verify_citations
+from retrieval import RetrievalError, compose_query, make_retriever
 
 logger = logging.getLogger(__name__)
 
@@ -211,7 +211,13 @@ def _seat_prompt(topic: str, seat: dict, sources=None) -> list[dict[str, Any]]:
             "Every factual claim must carry a citation marker [S#] pointing at one of "
             "the sources listed above. Quote only what those sources support. Do not "
             "invent sources and do not cite anything outside the list; if a claim is "
-            "not supported, mark it unverified."
+            "not supported, mark it unverified.\n"
+            f"If you need a sample line, a made-up label, or any other illustration of "
+            f"your own, prefix it with {SELF_EXAMPLE_MARKER} -- "
+            f'{SELF_EXAMPLE_MARKER} "Ship to 4th & Main, dock 2" -- and it is read as '
+            "your example, not as a quote from a source. Any quote you do not mark is "
+            "checked against the sources word for word and fails the run if it is not "
+            "there."
         )
     else:
         grounding = (
@@ -242,7 +248,9 @@ def _judge_prompt(topic: str, reports: list[dict], sources=None) -> str:
         citation_rule = (
             f"\n\n{format_sources(sources)}\n"
             "Keep the [S#] markers that appear in the reports. Do not add citations "
-            "that are not in this list; name a claim unverified instead."
+            "that are not in this list; name a claim unverified instead. An example you "
+            f"construct yourself must carry the {SELF_EXAMPLE_MARKER} prefix; every "
+            "other quote is checked against the sources."
         )
     return (
         "You are the panel judge. Recommend, do not decide: the human makes the call.\n"
@@ -329,7 +337,11 @@ def make_panel_handler(ctx: Any):
         all_sources: list = []
         if retrieval_on:
             for seat in seats:
-                query = f"{topic} — {seat['name']}: {seat.get('brief', '')}"
+                # A query is a search string, not a sentence: the template that read
+                # "{topic} — {seat}: {brief}" ran past the length a keyless backend
+                # answers, so the seat got zero results and the run failed looking
+                # like the web had nothing to say.
+                query = compose_query(topic, seat["name"], seat.get("brief", ""))
                 try:
                     found = retriever.search(query, top_k=top_k)
                 except RetrievalError as exc:

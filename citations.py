@@ -345,9 +345,17 @@ def url_key(url: str) -> str:
     return f"{parts.netloc}{parts.path}" + (f"?{parts.query}" if parts.query else "")
 
 
+# A dash run is typography, not a claim. LaTeX writes ``Bradley--Terry`` where a
+# typesetter renders ``Bradley-Terry`` or ``Bradley–Terry``; all three spell the same
+# word, and folding them to one hyphen keeps the quote check word-aligned without
+# gluing separate words together (the fold needs a word character on both sides).
+_DASH_RUN_RE = re.compile(r"(?<=[\w])[-\u2010-\u2015\u2212]+(?=[\w])")
+
+
 def _normalize_quote(text: str) -> str:
-    """Lowercase, collapse whitespace, strip wrapping punctuation."""
+    """Lowercase, fold dash spellings, collapse whitespace, strip wrapping punctuation."""
     cleaned = re.sub(r"\s+", " ", (text or "").replace("\u2019", "'")).strip()
+    cleaned = _DASH_RUN_RE.sub("-", cleaned)
     return cleaned.strip("\"'“”‘’[]").lower()
 
 
@@ -472,11 +480,37 @@ def extract_quotes(text: str) -> list[str]:
     return quotes
 
 
+# The one spelling the panel prompts teach and the verifier honors: a quote the seat
+# invented to illustrate a point. Explicit, adjacent, and narrow on purpose -- "for
+# example," before a quote is not a marker, because that is exactly the phrasing a
+# fabricated citation would wear.
+SELF_EXAMPLE_MARKER = "[example]"
+
+SELF_EXAMPLE_RE = re.compile(
+    r"(?:\[\s*example\s*\]|\(\s*example\s*\))"
+    r"|(?<![\w'\u2019-])\bexample\s*(?::|[-\u2013\u2014])"
+    r"[\s:.,\-\u2013\u2014]*$",
+    re.IGNORECASE,
+)
+
+
+def _marked_self_example(text: str, start: int) -> bool:
+    """True when the quote at ``start`` is prefixed by the self-example marker."""
+    window = text[max(0, start - 40) : start]
+    return bool(SELF_EXAMPLE_RE.search(window))
+
+
 def _quote_problems(text: str, sources) -> list[str]:
     """A quoted claim must be checkable against the source its marker points at.
 
     Scope of a quote's marker: its own sentence, or the sentence immediately before
     it (a report may write `Numbers moved [S1]. The log says "..."`). Never wider.
+
+    A quote carrying the explicit self-example marker is the seat's own illustration,
+    not a claim about a source, so it is not grounded-checked at all. The marker has
+    to touch the quote -- nothing is exempted by a marker thrown at the top of a
+    report -- and it never excuses a fabricated [S#] or an unknown URL, which are
+    checked independently in ``verify_citations``.
     """
     problems: list[str] = []
     if not sources:
@@ -485,6 +519,8 @@ def _quote_problems(text: str, sources) -> list[str]:
         span = _quote_span(match)
         quote = _normalize_quote(span)
         if not quote:
+            continue
+        if _marked_self_example(text or "", match.start()):
             continue
         cited = sorted(
             r
