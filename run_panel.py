@@ -88,6 +88,7 @@ JSON_HINT = (
 )
 
 KEY_ENV_PREFIX = "STORM_"
+USER_AGENT = "storm-panel/0.5"
 
 
 def resolve_key_env(name):
@@ -325,7 +326,7 @@ def complete(messages, slot, defaults, temperature, max_tokens, timeout, args, b
     req = urllib.request.Request(
         f"{base_url}/chat/completions",
         data=json.dumps(body).encode(),
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", "User-Agent": USER_AGENT},
         method="POST",
     )
     if key:  # local servers often need no key, so the header is optional
