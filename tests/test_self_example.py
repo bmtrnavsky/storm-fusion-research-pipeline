@@ -33,12 +33,31 @@ def problems(text, require_citation=False):
     return verify_citations(text, list(SOURCES), require_citation=require_citation)
 
 
-@pytest.mark.parametrize(
-    "prefix", ["[example]", "(example)", "Example:", "example -", "[Example]"]
-)
+@pytest.mark.parametrize("prefix", ["[example]", "(example)", "[Example]", "( EXAMPLE )"])
 def test_marked_example_quote_is_not_a_claim(prefix):
     text = f'{GROUNDED} Label check: {prefix} "Ship to 4th & Main, dock 2" reads badly.'
     assert problems(text) == []
+
+
+def test_example_lead_in_does_not_exempt_a_quote():
+    # The fail-open: a fabricated quote wearing the plain-english "example:" lead-in,
+    # in a sentence that carries a real [S1], sailed through ungrounded.
+    text = f'{GROUNDED} Label check: For example: "the line never stops for lunch" [S1].'
+    assert problems(text) != []
+
+
+def test_bracket_marker_does_not_exempt_a_quote_grounded_by_its_own_sentence():
+    # Even the explicit marker stops meaning "illustration" once the same sentence
+    # claims a source: that sentence is asserting the quote is checkable.
+    text = f'{GROUNDED} Label check: [example] "the line never stops for lunch" [S1].'
+    assert problems(text) != []
+
+
+def test_marker_must_touch_the_quote_it_exempts():
+    # A marker parked earlier in the sentence exempts nothing: the quote has to be
+    # the thing the marker introduces.
+    text = f'{GROUNDED} Label check: [example] the packing label says "Ship to 4th & Main, dock 2".'
+    assert problems(text) != []
 
 
 def test_marker_only_covers_the_quote_it_touches():
@@ -55,9 +74,9 @@ def test_unmarked_quote_is_still_gated():
 
 
 def test_prose_phrasing_is_not_a_marker():
-    # Deliberately narrow: "for example," and "counter-example:" are exactly the
-    # phrasing a fabricated citation would wear, so neither exempts a quote.
-    for phrase in ("For example,", "The counter-example:"):
+    # Deliberately narrow: prose lead-ins are exactly the phrasing a fabricated
+    # citation would wear, so none of them exempts a quote.
+    for phrase in ("For example,", "The counter-example:", "Example:", "example -", "Example \u2014"):
         text = f'{GROUNDED} {phrase} "Ship to 4th & Main, dock 2" reads badly.'
         assert problems(text) != [], phrase
 

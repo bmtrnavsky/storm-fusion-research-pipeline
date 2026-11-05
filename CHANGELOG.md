@@ -2,7 +2,9 @@
 
 All notable changes to this project. Newest first.
 
-## Unreleased
+## 0.6.1 (2026-11-04)
+
+Tightened verifier: self-example exemption only on the explicit marker form, markdown-wrapped URLs resolve, www matches bare hosts. 253 tests green.
 
 Four defects found by the first live voice run, each fixed test-first.
 
@@ -19,7 +21,19 @@ Four defects found by the first live voice run, each fixed test-first.
 - **Self-example marker.** A quote prefixed with `[example]` is the seat's own
   illustration and is not grounded-checked; an unmarked quote is checked exactly as
   before, and the marker never excuses a fabricated `[S#]` or an unknown URL. Seat and
-  judge prompts teach the marker.
+  judge prompts teach the marker. Only the bracketed form exempts -- a prose lead-in
+  (`for example:`, `example -`) does not -- and the exemption is refused when the
+  quote's own sentence carries an `[S#]`, since that sentence claims it can be checked.
+
+Two honest-report false positives, fixed test-first.
+
+- **Markdown around a URL.** `**https://…**`, `_https://…_` and `[https://…]` read as
+  fabricated URLs. `_strip_url_tail` now trims a trailing emphasis run and an *unbalanced*
+  closing bracket (a URL that opened its own bracket keeps it), beside the existing paren
+  rule. A fabricated URL wearing the same wrappers is still caught.
+- **`www.` spelling.** `www.a.org/x` and `a.org/x` are one source, so a redirect that
+  lands on one spelling grounds a report quoting the other. `url_key` folds a leading
+  `www.` label only when two labels remain; distinct subdomains and paths stay distinct.
 
 ## 0.6.0 (2026-11-04)
 

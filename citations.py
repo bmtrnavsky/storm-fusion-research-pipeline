@@ -86,6 +86,9 @@ class CitationError(RuntimeError):
 
 
 _TRAILING_PUNCT = ".,;:!?'\""
+# Markdown emphasis delimiters. A URL is never written with a trailing ``*`` or ``_``
+# of its own, so a trailing run is always the markdown that wrapped the link.
+_MARKDOWN_EMPHASIS = "*_"
 
 
 def _idna_netloc(netloc: str) -> str:
@@ -311,14 +314,34 @@ def _host_like(host: str, path: str = "", port: str = "") -> bool:
     return True
 
 
+def _trailing_closer(url: str) -> bool:
+    """True when the last character closes text around the URL instead of belonging to it.
+
+    A paren or bracket is the sentence's only when the URL did not open one; an
+    emphasis character is never the URL's own.
+    """
+    last = url[-1]
+    if last == ")":
+        return url.count("(") < url.count(")")
+    if last == "]":
+        return url.count("[") < url.count("]")
+    return last in _MARKDOWN_EMPHASIS
+
+
 def _strip_url_tail(url: str) -> str:
-    """Trim sentence punctuation, then only *unbalanced* closing parentheses.
+    """Trim sentence punctuation, then only *unbalanced* closing delimiters.
 
     ``.../Throughput_(operations)`` keeps its last paren (the pair balances);
-    ``(https://host/x)`` loses it (the outer paren belongs to the sentence).
+    ``(https://host/x)`` loses it (the outer paren belongs to the sentence). A
+    closing bracket follows the same rule, so ``[https://host/x]`` loses its ``]``
+    while a URL that opened its own bracket (``/v[1]``) keeps it.
+
+    Markdown emphasis is never part of a URL: ``**https://host/x**`` and
+    ``_https://host/x_`` are a bolded and an italicised link, and the delimiter run
+    is text around the URL, not the last character of it.
     """
     url = url.strip().rstrip(_TRAILING_PUNCT)
-    while url.endswith(")") and url.count("(") < url.count(")"):
+    while url and _trailing_closer(url):
         url = url[:-1].rstrip(_TRAILING_PUNCT)
     return url
 
@@ -338,11 +361,21 @@ def extract_urls(text: str) -> set[str]:
 
 
 def url_key(url: str) -> str:
-    """Scheme-agnostic identity: a bare host and its http(s) spelling are one source."""
+    """Scheme- and ``www.``-agnostic identity: one page, one source.
+
+    A bare host and its http(s) spelling are one source, and so are ``www.a.org/x``
+    and ``a.org/x``: the redirect that lands on one spelling is the page the seat
+    quotes under the other. Only the leading ``www.`` label is folded -- a real
+    subdomain (``docs.a.org``) stays a different source -- and only when two labels
+    remain, so a host that merely starts with ``www.`` is left whole.
+    """
     from urllib.parse import urlsplit
 
     parts = urlsplit(url)
-    return f"{parts.netloc}{parts.path}" + (f"?{parts.query}" if parts.query else "")
+    netloc = parts.netloc
+    if netloc[:4].lower() == "www." and netloc.count(".") >= 2:
+        netloc = netloc[4:]
+    return f"{netloc}{parts.path}" + (f"?{parts.query}" if parts.query else "")
 
 
 # A dash run is typography, not a claim. LaTeX writes ``Bradley--Terry`` where a
@@ -481,23 +514,30 @@ def extract_quotes(text: str) -> list[str]:
 
 
 # The one spelling the panel prompts teach and the verifier honors: a quote the seat
-# invented to illustrate a point. Explicit, adjacent, and narrow on purpose -- "for
-# example," before a quote is not a marker, because that is exactly the phrasing a
-# fabricated citation would wear.
+# invented to illustrate a point. Explicit and narrow on purpose -- exactly one form,
+# the bracketed marker, touching the quote. Prose lead-ins ("for example:", "example -")
+# never exempt anything: that is the phrasing a fabricated citation would wear, and
+# honoring it turned the exemption into a hole.
 SELF_EXAMPLE_MARKER = "[example]"
 
 SELF_EXAMPLE_RE = re.compile(
-    r"(?:\[\s*example\s*\]|\(\s*example\s*\))"
-    r"|(?<![\w'\u2019-])\bexample\s*(?::|[-\u2013\u2014])"
-    r"[\s:.,\-\u2013\u2014]*$",
+    r"(?:\[\s*example\s*\]|\(\s*example\s*\))[\s:.,\-\u2013\u2014]*$",
     re.IGNORECASE,
 )
 
 
-def _marked_self_example(text: str, start: int) -> bool:
-    """True when the quote at ``start`` is prefixed by the self-example marker."""
+def _marked_self_example(text: str, start: int, end: int) -> bool:
+    """True when the quote at ``start`` is an illustration the seat marked.
+
+    Both halves have to hold. The bracketed marker must touch the quote, and the
+    sentence around the quote must make no citation of its own: ``[example] "..."
+    [S1]`` is a sentence asserting the quote is checkable against a source, so the
+    exemption is refused there and the quote is grounded like any other.
+    """
     window = text[max(0, start - 40) : start]
-    return bool(SELF_EXAMPLE_RE.search(window))
+    if not SELF_EXAMPLE_RE.search(window):
+        return False
+    return not extract_citations(_sentence(text, start, end))
 
 
 def _quote_problems(text: str, sources) -> list[str]:
@@ -509,8 +549,10 @@ def _quote_problems(text: str, sources) -> list[str]:
     A quote carrying the explicit self-example marker is the seat's own illustration,
     not a claim about a source, so it is not grounded-checked at all. The marker has
     to touch the quote -- nothing is exempted by a marker thrown at the top of a
-    report -- and it never excuses a fabricated [S#] or an unknown URL, which are
-    checked independently in ``verify_citations``.
+    report -- and it is refused outright when the quote's own sentence cites a source,
+    because that sentence is claiming the quote can be checked. It never excuses a
+    fabricated [S#] or an unknown URL either; those are checked independently in
+    ``verify_citations``.
     """
     problems: list[str] = []
     if not sources:
@@ -520,7 +562,7 @@ def _quote_problems(text: str, sources) -> list[str]:
         quote = _normalize_quote(span)
         if not quote:
             continue
-        if _marked_self_example(text or "", match.start()):
+        if _marked_self_example(text or "", match.start(), match.end()):
             continue
         cited = sorted(
             r

@@ -94,9 +94,12 @@ Every run with retrieval on is checked before you see it:
 - every URL in the report must be in the retrieved set;
 - every quoted passage must appear in the retrieved text, word-aligned, with dash
   spellings folded (`Bradley--Terry`, `Bradley-Terry` and `Bradley–Terry` are one word);
-- a quote prefixed with `[example]` is the seat's own illustration, not a claim about a
-  source, and is not grounded-checked. The marker has to touch the quote, and it never
-  excuses a fabricated `[S#]` or an unknown URL.
+- a quote prefixed with `[example]` or `(example)` is the seat's own illustration, not a
+  claim about a source, and is not grounded-checked. The marker has to touch the quote,
+  and the exemption is refused when the quote's own sentence carries an `[S#]`: that
+  sentence is claiming the quote can be checked. Prose lead-ins (`for example:`,
+  `example -`) never exempt anything, and no marker excuses a fabricated `[S#]` or an
+  unknown URL.
 
 A report that fails ends the run with `CitationError` listing each problem. Nothing is
 partially accepted and nothing is silently dropped: a marker the model wrote sloppily is
