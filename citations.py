@@ -165,6 +165,28 @@ def _marker_like(content: str) -> bool:
     return bool(re.search(r"[Ss]\s?\d", stripped))
 
 
+# Characters that wrap a marker without being part of it. A report may gloss a
+# bracket marker inside a parenthesis ("Claim ([S1]).") or nest one in brackets.
+_WRAP_OPEN = "([{"
+_WRAP_CLOSE = ")]}"
+
+
+def _strip_wrappers(token: str) -> str:
+    """Peel wrapping brackets/parens so ``([S1])`` reads as the marker ``[S1]``.
+
+    The paren scan hands over its group body with brackets intact and the bracket
+    scan can hand over an opening wrapper, so a marker reached the range check
+    dressed in punctuation and was reported as unrecognized: a clean citation
+    failed the gate on delimiters alone. Only wrapper characters are peeled —
+    ``S1`` is what every spelling means, so the number is still range-checked.
+    """
+    while token and token[0] in _WRAP_OPEN:
+        token = token[1:]
+    while token and token[-1] in _WRAP_CLOSE:
+        token = token[:-1]
+    return token
+
+
 def _parse_marker_content(content: str) -> tuple[set[int], list[str]]:
     """Leniently read one marker body into references plus unreadable tokens."""
     refs: set[int] = set()
@@ -175,7 +197,7 @@ def _parse_marker_content(content: str) -> tuple[set[int], list[str]]:
     # "and"/"or"/"&" join markers: (S1 and S2). They are not odd tokens.
     stripped = re.sub(r"(?i)\b(?:and|or|also|see|cf)\b|&", " ", stripped)
     for token in re.split(r"[,;\s]+", stripped):
-        token = token.strip(".,;:*_~`")
+        token = _strip_wrappers(token.strip(".,;:*_~`"))
         if not token:
             continue
         span = RANGE_RE.fullmatch(token)

@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Hermes Plugin](https://img.shields.io/badge/Hermes-Plugin-teal.svg)](https://hermes-agent.nousresearch.com/docs)
-[![Version](https://img.shields.io/badge/version-0.6.0-orange.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.6.1-orange.svg)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/tests-199%20passing-brightgreen.svg)](tests)
 
 A human-gated perspective panel: one question, several seats, one judge, one human.

@@ -5,7 +5,7 @@ v0.6.0. Retrieval and a citation verifier are part of the loop: each seat retrie
 sources, must cite them as `[S#]`, and the run fails closed when a marker, a URL or a quote
 does not resolve to a retrieved source. **Parent:** Stanford STORM (Shao et al., NAACL 2024)
 and Co-STORM (EMNLP 2024); the results in their papers are theirs, not this repo's.
-**Repo:** `bmtrnavsky/storm-fusion-research-pipeline`. **Version:** 0.6.0.
+**Repo:** `bmtrnavsky/storm-fusion-research-pipeline`. **Version:** 0.6.1.
 
 ## Identity
 
