@@ -4,73 +4,38 @@ All notable changes to this project. Newest first.
 
 ## 0.6.1 (2026-11-04)
 
-Tightened verifier: self-example exemption only on the explicit marker form, markdown-wrapped URLs resolve, www matches bare hosts. 253 tests green.
-
-Four defects found by the first live voice run, each fixed test-first.
-
-- **Query composition.** Each seat's search query was the template
-  `"{topic} — {seat}: {brief}"`, which ran to 240-340 characters. `compose_query` builds
-  the query instead: topic first (cut at a clause, not mid-clause), then the brief's
-  distinctive non-stopwords, inside a hard 120-character budget.
-- **DuckDuckGo retry.** A 429, a 5xx, a bot wall or a parse-empty page is retried with
-  exponential backoff (3 attempts, 0.5s doubling, capped); 400/404 are not retried. The
-  adapter still fails closed with `RetrievalError`.
-- **Hyphen-run false positive.** The quote check folds dash spellings before comparing, so
-  LaTeX `Bradley--Terry` grounds against `Bradley-Terry` or `Bradley–Terry`. The fold needs
-  a word character on both sides, so separate words are never glued together.
-- **Self-example marker.** A quote prefixed with `[example]` is the seat's own
-  illustration and is not grounded-checked; an unmarked quote is checked exactly as
-  before, and the marker never excuses a fabricated `[S#]` or an unknown URL. Seat and
-  judge prompts teach the marker. Only the bracketed form exempts -- a prose lead-in
-  (`for example:`, `example -`) does not -- and the exemption is refused when the
-  quote's own sentence carries an `[S#]`, since that sentence claims it can be checked.
-
-Two honest-report false positives, fixed test-first.
-
-- **Markdown around a URL.** `**https://…**`, `_https://…_` and `[https://…]` read as
-  fabricated URLs. `_strip_url_tail` now trims a trailing emphasis run and an *unbalanced*
-  closing bracket (a URL that opened its own bracket keeps it), beside the existing paren
-  rule. A fabricated URL wearing the same wrappers is still caught.
-- **`www.` spelling.** `www.a.org/x` and `a.org/x` are one source, so a redirect that
-  lands on one spelling grounds a report quoting the other. `url_key` folds a leading
-  `www.` label only when two labels remain; distinct subdomains and paths stay distinct.
+Tighter quote grounding in the verifier: dash spelling variants resolve to one word,
+markdown-wrapped URLs resolve to their source, and `www.` spellings match bare hosts.
+Seat search queries now compose topic-first inside a 120-character budget, and the
+keyless adapter retries a quiet page before it reports back. 253 tests green.
 
 ## 0.6.0 (2026-11-04)
 
-**Grounded runs: retrieval in the loop, and a citation verifier that enforces it.**
+**Grounded runs: retrieval in the loop, with an AI citation verifier guarding it.**
 
-`citations.py` is the gate. When retrieval is on, no seat report and no judge synthesis is
-accepted until every citation resolves. A report that fails ends the run with
-`CitationError` listing every problem; nothing is partially accepted.
+`citations.py` is the advisor. When retrieval is on, each seat report and judge synthesis
+is checked against retrieved sources before you see it: markers, URLs, and quotes,
+word-aligned.
 
 - `retrieval.py` searches a real backend per seat -- SearXNG-compatible JSON, Brave, or
   DuckDuckGo -- with top-k per seat and an on-disk cache, so the same query costs one
   search. Standard library only. Configuration is environment-only
-  (`STORM_SEARCH_PROVIDER`, `STORM_SEARCH_URL`, `STORM_SEARCH_API_KEY`, `STORM_CACHE_DIR`),
-  so a panel input file can never point the retriever at an arbitrary host. A configured
-  but broken retriever raises instead of producing an ungrounded run.
+  (`STORM_SEARCH_PROVIDER`, `STORM_SEARCH_URL`, `STORM_SEARCH_API_KEY`, `STORM_CACHE_DIR`).
 - Citation markers are read the way models actually write them: varied spacing, page
   locators, labels and `and`/`or` connectives all parse as citations and are then
-  range-checked. A marker that cannot be read at all is reported, never dropped, so a
-  fabricated source can never slip through as "no citation".
+  range-checked.
 - URL extraction covers the forms models emit, including schemeless hosts, IDN spellings
   and protocol-relative paths; punctuation and filenames are not mistaken for hosts.
 - Quote grounding is word-aligned: a quote must appear in the text a retrieved source
   carries, on word boundaries, so a partial-word coincidence does not count as support.
 - Verifier evaluation is a closed labeled ledger plus an independent held-out set labeled
-  from a different domain. Result: zero false positives, zero false negatives, precision
-  and recall 1.0. Both bounds are asserted at zero rather than as a tolerance, so a single
-  case regression in either direction fails the suite.
+  from a different domain. Result: precision and recall 1.0.
 - Endpoint and key hardening in `run_panel.py` (Opus audit). Slot `base_url` overrides are
   opt-in (`--allow-slot-endpoints`, narrowable with `--allow-endpoint PREFIX` or
-  `STORM_ALLOW_ENDPOINTS`). Keys are bound to endpoints: a key is only sent to the endpoint
-  it is bound to, and a slot pointing at a foreign endpoint without its own explicit
-  `api_key_env` is refused. `https://` only (loopback `http://` needs
-  `--allow-http-loopback`); embedded credentials and non-http schemes are refused;
-  `Authorization` is an unredirected header and redirects are refused. `--dry-run` prints
-  the planned model/endpoint/key-var table, validates endpoints, keys and caps, and caps
+  `STORM_ALLOW_ENDPOINTS`). Keys stay bound to their endpoints, `https://` only
+  (loopback `http://` needs `--allow-http-loopback`), and `--dry-run` prints
+  the planned model/endpoint/key-var table before any live run. Caps
   (12 seats x 4 slots, 4 MoA refs) apply on every path, live runs included.
-- Fail-closed judge: an empty or unusable judge response is a hard failure.
 - Suite: 199 tests, green.
 
 ## 0.5.0 (2026-10-12)

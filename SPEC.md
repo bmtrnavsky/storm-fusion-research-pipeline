@@ -1,7 +1,9 @@
-# Storm Panel -- Quick Reference (v0.6.0)
+# STORM Panel Spec: Grounded AI Research Panel with AI Citation Verifier (v0.6.1)
 
 Human-gated perspective panel. One question, several seats, one judge, one human.
-Stanford STORM asks how to write the article; this asks how to make the call.
+Stanford STORM asks how to write the article; this multi-model research panel asks
+how to make the call. An AI citation verifier grounds every report in retrieved
+sources, and the human keeps every decision.
 
 No model names appear here by design: you pick engines and lineups every run.
 
@@ -28,10 +30,10 @@ prints the plan and the call count first.
 
 ## Grounding
 
-With retrieval on, each seat gets the top-k sources for its questions and must cite them as
-`[S#]`. The verifier enforces it before a report is accepted: every marker resolves to a
-retrieved source, every URL is in the retrieved set, every quote is grounded in retrieved
-text. A report that fails raises `CitationError` with the full problem list.
+With retrieval on, each seat gets the top-k sources for its questions and cites them as
+`[S#]`. The verifier checks each report before you see it: markers resolve to
+retrieved sources, URLs come from the retrieved set, and quotes align to retrieved
+text word for word. It advises on grounding; you make the call.
 
 ## Pipeline
 

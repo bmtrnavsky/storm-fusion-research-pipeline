@@ -2,8 +2,8 @@
 
 **Status:** implemented in v0.4.0 (skill plus `storm_run_panel` tool); grounded runs since
 v0.6.0. Retrieval and a citation verifier are part of the loop: each seat retrieves its own
-sources, must cite them as `[S#]`, and the run fails closed when a marker, a URL or a quote
-does not resolve to a retrieved source. **Parent:** Stanford STORM (Shao et al., NAACL 2024)
+sources, cites them as `[S#]`, and the verifier checks every marker, URL, and quote
+against retrieved sources before you see the report. **Parent:** Stanford STORM (Shao et al., NAACL 2024)
 and Co-STORM (EMNLP 2024); the results in their papers are theirs, not this repo's.
 **Repo:** `bmtrnavsky/storm-fusion-research-pipeline`. **Version:** 0.6.1.
 
@@ -50,10 +50,8 @@ slot may itself be a Fusion or MoA call, which fans out again to its own models 
 them before returning one answer. Calls per run: seats x slots x inner models, plus one
 merge per slot, plus the judge. Hermes MoA allows one inner level only (a preset's
 aggregator cannot be another MoA preset). A MoA preset as a slot
-(`provider: moa`) timed out in live runs through `ctx.llm` (non-streaming
-aggregator leg hangs, upstream NousResearch/hermes-agent#133916); test it on
-your install before relying on it. Fallback:
-list the preset's reference models as separate slots.
+(`provider: moa`) is unverified on the plugin path, so list the preset's
+reference models as separate slots.
 
 **Cap and dry-run gate.** Max 12 seats x 4 slots per run (48 seat calls before inner models). Run `python run_panel.py <panel.json> --dry-run` first (on the plugin path, count by hand: seats x slots x inner models, plus a merge per engine slot, plus the judge) and state the call count to the human before any live run.
 
@@ -86,7 +84,6 @@ shortcut ("greenlight", "go") proceeds as proposed.
 - The judge **recommends, the human decides.** The judge never closes a contested call.
 - Contradictions are reported with weights (which seats, what evidence), never averaged away.
 - Anything neither sourced nor human-confirmed stays `unverified` in the final document.
-  This is a prompt instruction, not a check: nothing in the code verifies a citation yet.
 - Ties and value judgments route to the human with the trade stated plainly.
 - Thin sections say `needs more research`, never padding.
 

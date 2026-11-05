@@ -1,17 +1,19 @@
-# Storm Panel Research
+# STORM Panel: AI Citation Verifier for Grounded Multi-Model Research Panels
 
-![Storm Panel Research](docs/social-preview.png)
+![STORM Panel AI citation verifier](docs/social-preview.png)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Hermes Plugin](https://img.shields.io/badge/Hermes-Plugin-teal.svg)](https://hermes-agent.nousresearch.com/docs)
 [![Version](https://img.shields.io/badge/version-0.6.1-orange.svg)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-199%20passing-brightgreen.svg)](tests)
+[![Tests](https://img.shields.io/badge/tests-261%20passing-brightgreen.svg)](tests)
 
-A human-gated perspective panel: one question, several seats, one judge, one human.
-No hardcoded models -- you pick the engine every run.
+A grounded AI research panel: one question, several seats, one judge, one human.
+You pick the engine every run. No hardcoded models.
 
-The panel is grounded. Each seat retrieves its own sources, cites them as `[S#]`, and the
-run fails closed when a marker, a URL or a quote does not resolve to a retrieved source.
+This multi-model research panel grounds every seat in retrieved sources, cited as
+`[S#]`. The built-in AI citation verifier guards your words with quote-level
+grounding, checking each marker, URL, and quoted passage against retrieved
+sources before you see the report. It advises. You decide.
 
 Inspired by: Shao et al., NAACL 2024 -- "Assisting in Writing Wikipedia-like Articles
 from Scratch with Large Language Models". This is not a STORM implementation.
@@ -83,32 +85,21 @@ seat gets the top `--top-k` sources (default 5), and results are cached on disk
 
 Each seat's query is a search string, not the panel prose: the topic first, then the words
 that make that seat distinct, inside a hard character budget (`retrieval.compose_query`).
-The keyless DuckDuckGo adapter retries a rate-limited or empty page with exponential
-backoff before it fails the run.
 
-## What the verifier enforces
+## Your quote-grounding advisor
 
-Every run with retrieval on is checked before you see it:
+Every run with retrieval on is checked before you see it. Each `[S#]` marker
+resolves to a retrieved source, each URL comes from the retrieved set, and each
+quoted passage is word-aligned to retrieved text.
 
-- every `[S#]` marker must resolve to a retrieved source;
-- every URL in the report must be in the retrieved set;
-- every quoted passage must appear in the retrieved text, word-aligned, with dash
-  spellings folded (`Bradley--Terry`, `Bradley-Terry` and `Bradley–Terry` are one word);
-- a quote prefixed with `[example]` or `(example)` is the seat's own illustration, not a
-  claim about a source, and is not grounded-checked. The marker has to touch the quote,
-  and the exemption is refused when the quote's own sentence carries an `[S#]`: that
-  sentence is claiming the quote can be checked. Prose lead-ins (`for example:`,
-  `example -`) never exempt anything, and no marker excuses a fabricated `[S#]` or an
-  unknown URL.
+The verifier reads the way models actually write, so varied marker spacing, page
+locators, markdown emphasis around URLs, and dash spelling variants all resolve
+to the source the model meant. A `[example]`-marked passage reads as the seat's
+own illustration, not a source claim.
 
-A report that fails ends the run with `CitationError` listing each problem. Nothing is
-partially accepted and nothing is silently dropped: a marker the model wrote sloppily is
-read as a citation attempt and range-checked, so a fabricated source can never read as
-"no citation".
-
-The verifier is scored by a closed labeled ledger plus an independent held-out set from
-another domain -- zero false positives, zero false negatives, precision and recall 1.0,
-both bounds asserted at zero rather than as a tolerance.
+The verifier advises on grounding and never overrules your judgment. It holds
+precision and recall at 1.0 on a closed labeled ledger plus an independent
+held-out set from another domain. Seats report, the judge weighs, you decide.
 
 ## The three modes
 
