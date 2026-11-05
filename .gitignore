@@ -11,6 +11,7 @@ venv/
 # Local run artifacts
 .pytest_cache/
 .storm-cache/
+.storm-cache-test/
 .ablation/
 .p*-red.log
 .p*-green.log

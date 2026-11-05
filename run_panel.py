@@ -80,7 +80,7 @@ from panel import (
     resolve_budgets,
     validate_judge_panel,
 )
-from retrieval import RetrievalError, make_retriever
+from retrieval import RetrievalError, compose_query, make_retriever
 
 JSON_HINT = (
     "\n\nReturn ONLY one JSON object, with no prose and no code fences, matching this "
@@ -604,7 +604,8 @@ def main(argv=None):
         for seat in seats:
             try:
                 found = retriever.search(
-                    f"{topic} — {seat['name']}: {seat.get('brief', '')}", top_k=args.top_k
+                    compose_query(topic, seat["name"], seat.get("brief", "")),
+                    top_k=args.top_k,
                 )
             except RetrievalError as exc:
                 print(json.dumps({"success": False, "error": str(exc), "code": exc.code}, indent=2))
